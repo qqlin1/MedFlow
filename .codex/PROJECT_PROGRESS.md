@@ -404,6 +404,7 @@ Git 提交 SHA
 - 首次测试暴露 Java 25 下 Mockito 动态代理无法自挂载；按 Mockito 官方方案通过 Maven Surefire 在测试 JVM 启动时显式加载 `mockito-core` Java Agent，复测通过。
 - 自动化测试：`MedFlowApplicationTests.contextLoads`，1 个测试，0 失败，0 错误，0 跳过。
 - `mvnw.cmd clean package` 通过，生成可执行 JAR；JAR 在 8080 启动成功，无业务接口时根路径返回预期 404，随后完成优雅停机。
+- 首次规范 Git 提交：`7cbfdf7`（`chore: initialize MedFlow Spring Boot project`）。
 - Day 5 工程部分已完成，课程状态进入 `VERIFYING`；仍需完成 Maven 生命周期、IOC 与自动配置口述验收。
 
 ## 14. 当前唯一下一步
