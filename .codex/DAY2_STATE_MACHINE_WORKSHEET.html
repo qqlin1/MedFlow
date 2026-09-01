@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedFlow · W1 Day 2 作业：预约与排班状态机</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background:#f4f5f7; margin:0; padding:24px; color:#222; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; border-left: 4px solid #2f6fed; padding-left: 8px; }
+  .card { background:#fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .sub { color:#666; font-size: 13px; margin: 0 0 16px; }
+  .hint { background:#fffbe8; border:1px solid #f0e0a0; border-radius: 8px; padding: 10px 16px; font-size: 13.5px; }
+  .hint ul { margin: 6px 0; padding-left: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { border: 1px solid #d8d8de; padding: 6px 8px; text-align: left; vertical-align: middle; }
+  th { background: #eef2fd; }
+  td.state, td.event { white-space: nowrap; font-weight: 600; }
+  td.event small { display:block; color:#b00; font-weight: 400; }
+  select, input[type=text], textarea { font-family: inherit; font-size: 13.5px; padding: 5px 7px; border: 1px solid #c9c9d2; border-radius: 6px; box-sizing: border-box; }
+  select { width: 100%; }
+  input[type=text] { width: 100%; }
+  textarea { width: 100%; min-height: 54px; resize: vertical; }
+  textarea.big { min-height: 80px; }
+  .qa { margin: 10px 0; }
+  .qa label { display:block; font-weight: 600; margin-bottom: 4px; font-size: 13.5px; }
+  .actions { margin: 20px 0 8px; display:flex; gap: 10px; flex-wrap: wrap; }
+  button { font-size: 14px; padding: 9px 18px; border: 0; border-radius: 8px; cursor: pointer; background: #2f6fed; color: #fff; }
+  button.gray { background: #8a8f9c; }
+  button.green { background: #1e9e5a; }
+  #status { font-size: 13px; color: #1e9e5a; align-self: center; }
+  #out { width: 100%; min-height: 200px; font-family: Consolas, monospace; font-size: 12.5px; }
+  .blank { display: inline-block; min-width: 120px; }
+  .tips { color:#888; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>MedFlow · W1 Day 2 作业：预约与排班状态机</h1>
+    <p class="sub">学习者：<input type="text" data-save="name" placeholder="写你的名字" style="width:140px">　日期：<span id="date"></span>　<span id="saved" style="color:#1e9e5a"></span></p>
+
+    <div class="hint">
+      <b>提示卡（做题时可以看，不算作弊）</b>
+      <ul>
+        <li>口诀：<b>扣不超，占不重，还不二，走不邪，碰不越</b>。</li>
+        <li>判定每个格子的唯一标准：<b>现实中这件事说得通吗？</b>说不通就拒绝。</li>
+        <li>拒绝码基本都用 <b>409</b>（状态冲突）。</li>
+        <li>病根句式：<b>判断和动手分开了，动手时依据已经过期。</b></li>
+        <li>输赢判定：受影响行数 <b>= 1 是赢家</b>（负责善后还号），<b>= 0 是输家</b>（放弃走人）。</li>
+      </ul>
+    </div>
+
+    <h2>任务 1：预约状态迁移表（15 行）</h2>
+    <p class="tips">前三列已固定，你只填后三列。允许 → 填新状态；拒绝 → 填 409 + 一句理由（为什么现实里说不通）。CONFIRMED × 取消是业务决策：允许或不允许都行，理由必填。</p>
+    <table>
+      <thead><tr><th style="width:16%">当前状态</th><th style="width:14%">事件</th><th style="width:12%">允许？</th><th style="width:16%">新状态</th><th>拒绝码 + 一句理由</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <h2>任务 2：排班状态机（表 B）三问，每问一句话</h2>
+    <div class="qa"><label>1. 发布（DRAFT → PUBLISHED）只能从哪个状态出发？</label><input type="text" data-save="q1" placeholder="状态 + 为什么（一句话）"></div>
+    <div class="qa"><label>2. “发布”和“生成一批 Slot”必须绑在一起做，这是 Day 1 学的哪个词？</label><input type="text" data-save="q2" placeholder="一个词 + 为什么（一句话）"></div>
+    <div class="qa"><label>3. STOPPED（停诊）算终态吗？为什么？</label><input type="text" data-save="q3" placeholder="算/不算 + 理由（一句话）"></div>
+
+    <h2>任务 3：四步剧情——取消和超时同时到达（今天的口述验收）</h2>
+    <p class="tips">这是你将来面试时讲这个故事的原型，用自己的话，每步一两句。</p>
+    <div class="qa"><label>① 朴素做法的现象：两个都先查状态再改，最后发生了什么？</label><textarea class="big" data-save="s1" placeholder="两个都看到……都……结果号源……"></textarea></div>
+    <div class="qa"><label>② 病根（用固定句式：判断和____分开了，动手时____）</label><textarea data-save="s2" placeholder="判断和动手分开了，动手时……"></textarea></div>
+    <div class="qa"><label>③ 解法和输赢判定：带什么前提更新？受影响行数 1 和 0 分别是谁、各干什么？最终状态为什么必然只有一个？</label><textarea class="big" data-save="s3" placeholder="两个都发……WHERE……=1 的人……=0 的人……"></textarea></div>
+    <div class="qa"><label>④ 迟到的超时员：确认员先赢了，十分钟后超时员才到，它该做什么？为什么“输”不算故障？</label><textarea class="big" data-save="s4" placeholder="它发现……改了 0 行……所以……输是……"></textarea></div>
+
+    <h2>任务 4：两个填空</h2>
+    <p>a. 迟到的超时员执行条件更新，受影响行数 = <input type="text" data-save="f1" class="blank"> ，于是他 <input type="text" data-save="f2" class="blank"> 。</p>
+    <p>b. 如果他强行改状态、还号，会同时撞坏关卡 <input type="text" data-save="f3" class="blank" placeholder="第几关+名字"> 和关卡 <input type="text" data-save="f4" class="blank" placeholder="第几关+名字"> 。</p>
+
+    <div class="actions">
+      <button class="green" onclick="generate()">生成提交文本</button>
+      <button onclick="copyOut()">复制到剪贴板</button>
+      <button class="gray" onclick="clearAll()">清空全部</button>
+      <span id="status"></span>
+    </div>
+
+    <h2>提交文本（点上面的按钮生成，然后整块复制发给老师）</h2>
+    <textarea id="out" readonly placeholder="填完后点「生成提交文本」，这里会出现可以直接复制的内容"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = [
+  ["PENDING 待确认", "确认"],
+  ["PENDING 待确认", "取消"],
+  ["PENDING 待确认", "超时"],
+  ["CONFIRMED 已确认", "完成就诊"],
+  ["CONFIRMED 已确认", "取消", "业务决策：允许/不允许都行，理由必填"],
+  ["CONFIRMED 已确认", "超时"],
+  ["CANCELLED 已取消", "确认"],
+  ["CANCELLED 已取消", "取消"],
+  ["CANCELLED 已取消", "超时"],
+  ["CLOSED 已关闭", "确认"],
+  ["CLOSED 已关闭", "取消"],
+  ["CLOSED 已关闭", "超时"],
+  ["COMPLETED 已完成", "确认"],
+  ["COMPLETED 已完成", "取消"],
+  ["COMPLETED 已完成", "超时"]
+];
+var KEY = "medflow_day2_worksheet_v1";
+
+function buildRows() {
+  var tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+  ROWS.forEach(function(r, i) {
+    var tr = document.createElement("tr");
+    var note = r[2] ? "<small>" + r[2] + "</small>" : "";
+    tr.innerHTML =
+      '<td class="state">' + r[0] + '</td>' +
+      '<td class="event">' + r[1] + note + '</td>' +
+      '<td><select data-save="r' + i + 'a">' +
+        '<option value="">--选--</option>' +
+        '<option value="✅ 允许">✅ 允许</option>' +
+        '<option value="❌ 拒绝">❌ 拒绝</option>' +
+      '</select></td>' +
+      '<td><input type="text" data-save="r' + i + 'n" placeholder="如：CONFIRMED" disabled></td>' +
+      '<td><input type="text" data-save="r' + i + 'r" placeholder="如：409，因为……" disabled></td>';
+    tb.appendChild(tr);
+  });
+}
+
+function toggleRow(i) {
+  var a = document.querySelector('[data-save="r' + i + 'a"]');
+  var n = document.querySelector('[data-save="r' + i + 'n"]');
+  var rj = document.querySelector('[data-save="r' + i + 'r"]');
+  n.disabled = (a.value !== "✅ 允许");
+  rj.disabled = (a.value !== "❌ 拒绝");
+  if (n.disabled) n.value = "";
+  if (rj.disabled) rj.value = "";
+}
+
+function save() {
+  var d = {};
+  document.querySelectorAll("[data-save]").forEach(function(el) { d[el.getAttribute("data-save")] = el.value; });
+  localStorage.setItem(KEY, JSON.stringify(d));
+  document.getElementById("saved").textContent = "已自动保存 " + new Date().toLocaleTimeString("zh-CN");
+}
+
+function load() {
+  var raw = localStorage.getItem(KEY);
+  if (!raw) return;
+  try {
+    var d = JSON.parse(raw);
+    document.querySelectorAll("[data-save]").forEach(function(el) {
+      var k = el.getAttribute("data-save");
+      if (d[k] !== undefined) el.value = d[k];
+    });
+    ROWS.forEach(function(r, i) { toggleRow(i); });
+  } catch (e) {}
+}
+
+function generate() {
+  var missing = [];
+  ROWS.forEach(function(r, i) {
+    var a = document.querySelector('[data-save="r' + i + 'a"]').value;
+    if (!a) missing.push(r[0] + " × " + r[1]);
+  });
+  if (missing.length) {
+    alert("还有 " + missing.length + " 行没选「允许/拒绝」：\n" + missing.join("、") + "\n\n填完再生成。");
+    return;
+  }
+  var L = [];
+  var name = document.querySelector('[data-save="name"]').value || "（没写名字）";
+  L.push("【MedFlow Day 2 作业提交】学习者：" + name + "　日期：" + new Date().toLocaleDateString("zh-CN"));
+  L.push("");
+  L.push("## 任务1 预约状态迁移表");
+  L.push("| 当前状态 | 事件 | 允许？ | 新状态 | 拒绝码+理由 |");
+  L.push("|---|---|---|---|---|");
+  ROWS.forEach(function(r, i) {
+    var a = document.querySelector('[data-save="r' + i + 'a"]').value;
+    var n = document.querySelector('[data-save="r' + i + 'n"]').value;
+    var rj = document.querySelector('[data-save="r' + i + 'r"]').value;
+    L.push("| " + r[0].split(" ")[0] + " | " + r[1] + " | " + a + " | " + (a === "✅ 允许" ? (n || "（空）") : "—") + " | " + (a === "❌ 拒绝" ? (rj || "（空）") : "—") + " |");
+  });
+  L.push("");
+  L.push("## 任务2 表B三问");
+  L.push("1. " + (val("q1") || "（未填）"));
+  L.push("2. " + (val("q2") || "（未填）"));
+  L.push("3. " + (val("q3") || "（未填）"));
+  L.push("");
+  L.push("## 任务3 四步剧情");
+  L.push("① 现象：" + (val("s1") || "（未填）"));
+  L.push("② 病根：" + (val("s2") || "（未填）"));
+  L.push("③ 解法与输赢：" + (val("s3") || "（未填）"));
+  L.push("④ 迟到的超时员：" + (val("s4") || "（未填）"));
+  L.push("");
+  L.push("## 任务4 填空");
+  L.push("a. 受影响行数 = " + (val("f1") || "__") + "，于是他 " + (val("f2") || "__") + "。");
+  L.push("b. 撞坏关卡 " + (val("f3") || "__") + " 和关卡 " + (val("f4") || "__") + "。");
+  document.getElementById("out").value = L.join("\n");
+  flash("已生成，点击「复制到剪贴板」或手动全选复制");
+}
+
+function val(k) { var el = document.querySelector('[data-save="' + k + '"]'); return el ? el.value.trim() : ""; }
+
+function copyOut() {
+  var t = document.getElementById("out");
+  if (!t.value) { flash("先点「生成提交文本」"); return; }
+  t.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t.value).then(function() { flash("已复制，去聊天窗口粘贴"); }, function() { fallbackCopy(t); });
+  } else { fallbackCopy(t); }
+}
+function fallbackCopy(t) {
+  try { document.execCommand("copy"); flash("已复制，去聊天窗口粘贴"); }
+  catch (e) { flash("复制失败，请手动 Ctrl+A、Ctrl+C"); }
+}
+
+function clearAll() {
+  if (!confirm("确定清空全部填写内容？")) return;
+  localStorage.removeItem(KEY);
+  location.reload();
+}
+
+function flash(msg) {
+  var s = document.getElementById("status");
+  s.textContent = msg;
+  setTimeout(function() { s.textContent = ""; }, 4000);
+}
+
+document.getElementById("date").textContent = new Date().toLocaleDateString("zh-CN");
+buildRows();
+load();
+document.addEventListener("input", function(e) {
+  if (e.target.matches("[data-save]")) {
+    save();
+    var k = e.target.getAttribute("data-save");
+    if (/^r\d+a$/.test(k)) toggleRow(parseInt(k.slice(1, -1), 10));
+  }
+});
+document.addEventListener("change", function(e) {
+  if (e.target.matches("[data-save]")) {
+    save();
+    var k = e.target.getAttribute("data-save");
+    if (/^r\d+a$/.test(k)) toggleRow(parseInt(k.slice(1, -1), 10));
+  }
+});
+</script>
+</body>
+</html>

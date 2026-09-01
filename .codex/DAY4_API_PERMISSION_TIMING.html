@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>W1 Day 4 · API、权限与事务时序</title>
+<style>
+:root{
+  --bg:#faf9f7; --surface:#ffffff; --surface2:#f3f1ec; --border:#e3e0d8;
+  --text:#2c2c2a; --muted:#6b6a66;
+  --accent:#1d9e75; --accent-soft:#e1f5ee; --accent-line:#0f6e56;
+  --warn:#a32d2d; --warn-soft:#fcebeb; --warn-line:#993c1d;
+  --blue:#185fa5; --blue-soft:#e6f1fb; --blue-line:#0c447c;
+  --amber:#854f0b; --amber-soft:#faeeda; --amber-line:#ba7517;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1a1a19; --surface:#242422; --surface2:#2e2e2b; --border:#3d3d39;
+    --text:#eceae5; --muted:#9a9892;
+    --accent:#5dcaa5; --accent-soft:#085041; --accent-line:#5dcaa5;
+    --warn:#f09595; --warn-soft:#791f1f; --warn-line:#f09595;
+    --blue:#85b7eb; --blue-soft:#0c447c; --blue-line:#85b7eb;
+    --amber:#ef9f27; --amber-soft:#633806; --amber-line:#ef9f27;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;padding:0 20px 80px;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.78}
+.wrap{max-width:920px;margin:0 auto}
+header{padding:46px 0 8px;border-bottom:1px solid var(--border);margin-bottom:28px}
+h1{font-size:25px;font-weight:600;margin:0 0 8px;letter-spacing:-.3px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+h2{font-size:19px;font-weight:600;margin:44px 0 14px;padding-top:22px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:16px;font-weight:600;margin:26px 0 8px}
+p{margin:0 0 13px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;background:var(--surface2);padding:1px 5px;border-radius:4px}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.65;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre code{background:none;padding:0}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--surface2);font-weight:600}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:14px 0}
+.key{background:var(--accent-soft);border-left:3px solid var(--accent-line);padding:14px 20px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.warn{background:var(--warn-soft);border-left:3px solid var(--warn-line);padding:14px 20px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.info{background:var(--blue-soft);border-left:3px solid var(--blue-line);padding:14px 20px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.amb{background:var(--amber-soft);border-left:3px solid var(--amber-line);padding:14px 20px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.q{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin:16px 0}
+.qno{color:var(--muted);font-size:13px;font-family:ui-monospace,monospace;margin:0 0 10px}
+.qbody{margin:0 0 12px;font-weight:600}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+textarea{width:100%;min-height:64px;padding:9px 12px;border:1px solid var(--border);border-radius:7px;
+  background:var(--bg);color:var(--text);font-size:14px;line-height:1.7;resize:vertical;font-family:inherit}
+textarea:focus{outline:none;border-color:var(--accent-line);background:var(--surface)}
+textarea.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;min-height:120px}
+.pass{background:var(--accent-soft);border-radius:8px;padding:11px 16px;margin-top:11px;font-size:13.5px}
+.pass b{color:var(--accent-line)}
+.grp{margin:22px 0 8px;font-weight:600;font-size:15px;color:var(--accent-line)}
+.bar{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);margin-top:36px;padding:14px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+button:hover{opacity:.88}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.saved{font-size:13px;color:var(--muted)}
+ul,ol{margin:0 0 14px;padding-left:22px}
+li{margin-bottom:7px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>W1 Day 4 · API、权限与事务时序</h1>
+  <p class="sub">下课条件：M0 设计互相一致 —— 接口清单、状态码约定、三张时序图能对上</p>
+</header>
+
+<h2>开课两件确认</h2>
+<p>进度文档里 Day 4 开课要先完成这两项。<strong>先自己答，不查资料。</strong></p>
+
+<div class="q">
+  <p class="qno">确认一</p>
+  <p class="qbody">外键立场：用一句话说清 MedFlow 要不要建外键约束，为什么；关联列怎么处理。</p>
+  <textarea id="c1"></textarea>
+  <details><summary>不记得理由了？点开看参考答案</summary>
+  <div class="box" style="margin-top:12px;font-size:14px">
+    <p><strong>立场一句话</strong>：不在数据库层建外键约束，关联关系由应用层的校验和事务保证；
+    所有关联列都建普通索引。</p>
+
+    <p><strong>四条理由（从强到弱）</strong></p>
+    <ol>
+      <li><strong>外键带来你看不见的锁。</strong>写子表时数据库偷偷给父表那一行加<strong>共享锁</strong>，
+      共享锁持有到事务 COMMIT 才释放（两阶段锁）→ 热点行的<strong>锁窗口被拉长</strong> → 并发下降。
+      更糟的是这些锁<strong>查不出来</strong>：<code>SHOW ENGINE INNODB STATUS</code> 里指向的是一条你根本没写过的 SQL。</li>
+      <li><strong>级联不理解业务规则，会静默破坏数据。</strong><code>ON DELETE CASCADE</code> 下误删一个号源，
+      几十条预约静默消失，没有校验、没有日志。而按业务规则，有有效预约的号源根本不该被删。</li>
+      <li><strong>拖累迁移和批量操作。</strong>批量修数据得先 <code>SET FOREIGN_KEY_CHECKS = 0</code>
+      —— 这个操作本身就说明外键在碍事。将来分库分表，跨库外键根本没法用。</li>
+      <li><strong>业界规范。</strong>阿里 Java 开发手册：不得使用外键与级联，一切外键概念必须在应用层解决。
+      <strong>但只背这一条不算懂，能说清前三条才算。</strong></li>
+    </ol>
+
+    <p><strong>代价 + 怎么补</strong><br>
+    失去数据库的引用完整性兜底 → 靠 ① 应用层写入校验 ② 删除前检查
+    ③ 定期巡检孤儿数据 ④ <strong>业务上用逻辑删除</strong>（医疗数据要留痕）来补。</p>
+
+    <div class="key" style="margin:10px 0"><strong>最值钱的一句（面试加分）</strong><br>
+    应用层其实做得更好 —— <code>decreaseIfAvailable</code> 的
+    <code>WHERE id = ? AND status = 'OPEN' AND remaining_capacity &gt; 0</code>
+    不只检查"号源存在"，还检查"<strong>状态开放且还有余量</strong>"。
+    <strong>外键只能检查存在，做不到后者，因为它不理解业务状态。</strong></div>
+
+    <p><strong>关联列</strong>：全部建普通索引。<br>
+    <strong>顺手检查</strong>：<code>slot_id</code> 在 <code>uk_patient_slot_active (patient_id, slot_id, active_flag)</code>
+    里排第二，按最左前缀，<strong>单独按 slot_id 查询用不上它</strong>，需要单独建 <code>idx_slot</code>。</p>
+  </div>
+  </details>
+  <div class="pass"><b>过关标准：</b>能说出「不建外键约束、关联列建索引」这个立场，
+  并给出至少一条理由。只说"不建"不给理由 = 不过关。<br>
+  <b>满分标准：</b>能说出"外键偷偷给父表加共享锁 + 锁窗口被拉长"，
+  以及"<code>decreaseIfAvailable</code> 已经做了外键想做的事、而且做得更好"。</div>
+</div>
+
+<div class="q">
+  <p class="qno">确认二</p>
+  <p class="qbody">复述预约的 4 个<strong>事件</strong>名单（注意是事件，不是状态）。</p>
+  <textarea id="c2"></textarea>
+  <div class="pass"><b>过关标准：</b>4 个事件是<strong>确认、取消、超时、完成就诊</strong>。
+  5 个状态是<strong>待确认、已确认、已取消、已关闭、已完成</strong>。
+  不要说成"已超时"——那是状态不是事件。Day 2 曾在这里错过一次。</div>
+</div>
+
+<h2>知识一：401 / 403 / 409</h2>
+
+<p>服务器拿到一个请求，依次过四关。每一关挡下来，返回的状态码都不一样：</p>
+
+<table>
+  <tr><th style="width:52px">码</th><th>一句话</th><th>真正含义</th></tr>
+  <tr><td><strong>401</strong></td><td>你谁？</td><td>没认证 —— 没带 Token，或 Token 过期 / 无效</td></tr>
+  <tr><td><strong>403</strong></td><td>我知道你是谁，但不行</td><td>认证通过了，但权限不够</td></tr>
+  <tr><td><strong>409</strong></td><td>你没错我也没错，但现在做不了</td><td>请求合法，但和资源当前状态冲突</td></tr>
+</table>
+
+<div class="warn">
+  <strong>401 的名字是个坑。</strong><code>401 Unauthorized</code> 字面是"未授权"，听起来像权限问题，
+  但它实际表示"<strong>未认证</strong>"。这是历史遗留的命名错误。
+  记住 <strong>401 = 未认证，403 = 未授权</strong>，就不会混。
+</div>
+
+<h3>进阶判断一：403 还是 404？</h3>
+<p>张三请求查看李四的预约（<code>GET /appointments/5002</code>，那是李四的），返回什么？</p>
+<ul>
+  <li><strong>返回 403</strong> → 等于告诉对方"这个 id 存在，只是你没权限"。若 id 自增可猜，
+  攻击者能一个个试，把全库预约 id 枚举出来。这叫 <strong>ID 枚举 / IDOR 信息泄露</strong>。</li>
+  <li><strong>返回 404</strong> → 不泄露。但用户困惑（"我明明有这个预约"），
+  自己排查时也分不清"真不存在"和"没权限"。</li>
+</ul>
+<div class="key">
+  <strong>折中做法（推荐）：对外返回 404，日志里记 403。</strong>
+  攻击者拿不到信息，你排查时有据可查。<br>
+  判断标准：<strong>这个 id 是不是连续可猜的、资源是否存在算不算敏感信息。</strong>是 → 用 404 伪装。
+</div>
+
+<h3>进阶判断二：400 还是 409？</h3>
+<ul>
+  <li><strong>400 Bad Request</strong> —— 请求<strong>本身</strong>有问题：缺必填参数、格式错、类型不对。
+  <strong>改请求就能解决。</strong></li>
+  <li><strong>409 Conflict</strong> —— 请求没问题，但和<strong>资源当前状态</strong>冲突。
+  <strong>改请求没用，得等状态变化。</strong></li>
+</ul>
+<p><strong>MedFlow 里 409 的四种场景</strong>：号源已满 / 已有有效预约 / 状态不允许这个操作（想取消已完成的）/
+幂等记录还在 PROCESSING（上一次请求还在处理中）。</p>
+<div class="key"><strong>口诀：「改请求有没有用？」</strong>有用 → 400；没用 → 409。</div>
+
+<h2>知识二：DTO / VO</h2>
+
+<p>先说清楚三个东西分别是什么：</p>
+<table>
+  <tr><th>名字</th><th>是什么</th><th>用在哪</th></tr>
+  <tr><td><strong>Entity</strong></td><td>和数据库表一一对应的对象，字段跟表字段一致</td><td>只在 DAO 层和数据库打交道</td></tr>
+  <tr><td><strong>DTO</strong></td><td>Data Transfer Object，接口之间传数据的对象</td><td>Controller 的<strong>入参</strong>和<strong>出参</strong></td></tr>
+  <tr><td><strong>VO</strong></td><td>View Object，专门给前端看的对象</td><td>Controller 的<strong>出参</strong>（强调"展示形状"）</td></tr>
+</table>
+
+<p><strong>为什么不能直接用 Entity 接收请求 / 返回响应？</strong>四个理由，第一条最要命：</p>
+
+<div class="warn">
+  <strong>1. 安全问题（最要命）。</strong>Entity 有表的全部字段。如果用 Entity 直接接收请求，
+  前端在 JSON 里多塞一个 <code>"status":"BOOKED"</code>，就能直接把预约状态改成已确认 ——
+  绕过所有业务校验。这叫 <strong>批量赋值漏洞（Mass Assignment）</strong>。
+  用 DTO 接收入参，前端传什么字段都白搭，因为 DTO 里根本没有那个字段。
+</div>
+<ul>
+  <li><strong>2. 耦合</strong>：改表结构会直接破坏接口契约，前端跟着炸。</li>
+  <li><strong>3. 字段对不上</strong>：接口要显示医生姓名，但表里只有 <code>doctor_id</code>。</li>
+  <li><strong>4. 校验位置</strong>：DTO 上可以加 <code>@NotNull</code> <code>@NotBlank</code>，参数校验有地方安放。</li>
+</ul>
+
+<h2>知识三：事务边界</h2>
+
+<h3>事务该画在哪一层？</h3>
+<div class="key"><strong>Service 层。</strong>不是 Controller，也不是 Mapper。</div>
+<ul>
+  <li><strong>为什么不在 Controller？</strong>Controller 负责 HTTP 协议（解析请求、拼响应）。
+  同一个业务可能被多个入口调用 —— HTTP 接口、定时任务、消息消费者。
+  事务要跟着业务走，不是跟着 HTTP 走。</li>
+  <li><strong>为什么不在 Mapper？</strong>一个业务操作经常要改多张表。
+  Mapper 只有单表操作，它不知道"这几张表要一起成功或一起失败"。</li>
+</ul>
+
+<h3>MedFlow 创建预约的事务边界</h3>
+<pre><code>@Transactional                       ← 事务从这里开始
+public Appointment book(BookCommand cmd) {
+    idempotencyMapper.insertAndGet(...)  // ① 写幂等记录
+    slotMapper.decreaseIfAvailable(...)  // ② 扣号源
+    appointmentMapper.insert(appt)       // ③ 插预约
+    idempotencyMapper.markSuccess(...)   // ④ 改幂等记录为 SUCCESS
+    return appt;
+}                                        ← 到这里提交或回滚</code></pre>
+<p>这四步必须原子：任何一步失败，前面已经做的都要撤销。否则就会出现
+"号源扣了但预约没建成"或者"预约建成了但幂等记录没写"这类事故。</p>
+
+<div class="amb">
+  <strong>事务里绝对不能做的事：外部网络调用。</strong>发短信、调支付、直连 MQ 发消息 —— 都不行。<br><br>
+  原因直接回扣你学过的一个概念：<strong>锁窗口</strong>。事务每多停留一秒，
+  它持有的行锁就多攥一秒，后面排队的请求就多等一秒。网络调用的耗时不可控（可能 30 毫秒，也可能 30 秒），
+  把不可控的东西放进事务，等于把系统的并发能力交给网络。
+  连接池被打满 → 雪崩。<br><br>
+  正确做法：<strong>Outbox</strong> —— 把要发的消息当数据写进本地表（同一个事务），
+  事务提交后由后台任务去发。（这是路线四的内容，M4 才动手，现在只要知道为什么。）
+</div>
+
+<h2>任务一：首批接口清单</h2>
+<p>下面是从需求文档里摘出来的全部接口。请补全三列：<strong>谁可以调</strong>（角色）、
+<strong>成功返回什么状态码</strong>、<strong>可能失败的码有哪些</strong>。</p>
+<div class="info">
+  角色只有三种：<code>PATIENT</code>（患者）、<code>DOCTOR</code>（医生）、<code>ADMIN</code>（管理员）。
+  写"任何人"表示不需要登录。状态码从这几个里选：200 / 201 / 400 / 401 / 403 / 404 / 409。
+</div>
+<div id="apis"></div>
+
+<h2>任务二：三张事务时序图</h2>
+<p>用文字把每一步写清楚。每张图必须标出：<strong>事务从哪里开始、到哪里结束、
+中间做了哪几件事、失败时回滚到哪一步</strong>。</p>
+<div id="seqs"></div>
+
+<h2>验收题</h2>
+<p>六道题，脱稿回答。答完对照过关标准自查。</p>
+<div id="exam"></div>
+
+<div class="bar">
+  <button onclick="exportMd()">复制我的答案（Markdown）</button>
+  <button class="ghost" onclick="clearAll()">清空重填</button>
+  <span class="saved" id="saved"></span>
+</div>
+
+</div>
+
+<script>
+const API_GROUPS = [
+  {g:'认证', items:[
+    {m:'POST', p:'/auth/login'},
+    {m:'POST', p:'/auth/logout'}
+  ]},
+  {g:'就诊人', items:[
+    {m:'POST', p:'/patients'},
+    {m:'GET',  p:'/patients'},
+    {m:'GET',  p:'/patients/{id}'}
+  ]},
+  {g:'基础查询', items:[
+    {m:'GET', p:'/departments'},
+    {m:'GET', p:'/doctors'},
+    {m:'GET', p:'/clinic-rooms'}
+  ]},
+  {g:'排班（管理员）', items:[
+    {m:'POST', p:'/admin/schedules'},
+    {m:'POST', p:'/admin/schedules/{id}/publish'},
+    {m:'POST', p:'/admin/schedules/{id}/close'}
+  ]},
+  {g:'号源', items:[
+    {m:'GET', p:'/slots'},
+    {m:'GET', p:'/slots/{id}'}
+  ]},
+  {g:'预约（核心）', items:[
+    {m:'POST', p:'/appointments'},
+    {m:'POST', p:'/appointments/{id}/confirm'},
+    {m:'POST', p:'/appointments/{id}/cancel'},
+    {m:'GET',  p:'/appointments/{id}'},
+    {m:'GET',  p:'/appointments'}
+  ]},
+  {g:'医生视角', items:[
+    {m:'GET', p:'/doctor/schedules'},
+    {m:'GET', p:'/doctor/appointments'}
+  ]}
+];
+
+const SEQS = [
+  {k:'seq1', t:'时序图 1：创建预约（成功路径）',
+   d:'张三预约号源 88，一切顺利。请写出：事务从哪开始 → 依次做了哪几步 → 事务在哪提交 → 返回什么。'},
+  {k:'seq2', t:'时序图 2：创建预约（号源不足，失败回滚）',
+   d:'号源 88 剩余 0。请写出：事务开始 → 走到哪一步失败 → 抛什么异常 → 事务回滚撤销了哪些已经做的操作 → 返回什么状态码。特别说明：此时幂等记录会怎样？'},
+  {k:'seq3', t:'时序图 3：取消与超时同时发生',
+   d:'张三手动取消，同时定时任务判定这条预约超时，两个操作并发。请写出：两个事务各自在做什么 → 谁等谁 → 谁成功谁失败 → 号源被归还几次 → 失败的那个返回什么状态码。'}
+];
+
+const EXAM = [
+  {n:1, b:'401 和 403 的区别是什么？各举一个 MedFlow 里的具体例子。',
+   p:'401 = 没认证（没带 Token 或 Token 过期），403 = 认证了但权限不够。例子要说具体：比如"没登录就调 GET /appointments/1 → 401"；"患者调 POST /admin/schedules → 403"。举不出具体例子 = 不过关。'},
+  {n:2, b:'患者 A 请求查看患者 B 的预约，应该返回 403 还是 404？为什么？',
+   p:'说出两难的实质：403 泄露"资源存在"（ID 枚举 / IDOR），404 不泄露但用户困惑、排查困难。
+   能给出折中方案（对外 404、日志记 403）更好。只答一个码不给理由 = 不过关。'},
+  {n:3, b:'400 和 409 的区别？"号源已满"应该是哪个？为什么？',
+   p:'400 = 请求本身有问题，改请求就能解决；409 = 请求合法但与当前状态冲突，改请求没用。
+   "号源已满"是 <strong>409</strong>，因为请求参数完全合法，换个时间再来可能就成了。
+   核心判据："改请求有没有用"。'},
+  {n:4, b:'为什么要有 DTO / VO，直接用 Entity 返回给前端会有什么问题？',
+   p:'至少说出<strong>批量赋值漏洞</strong>（前端多塞一个 status 字段就能改状态）这条，
+   外加耦合、字段不匹配、校验无处安放中的任意一条。只说"规范"/"解耦" = 不过关。'},
+  {n:5, b:'创建预约方法的事务边界应该画在哪一层？为什么事务里不能调外部接口？',
+   p:'边界在 <strong>Service 层</strong>（不在 Controller 也不在 Mapper），理由要说清。
+   事务里不能调外部接口的原因要说到<strong>锁窗口</strong>：网络耗时不可控 → 持锁时间变长 →
+   排队请求变多 → 连接池打满 → 雪崩。能说出 Outbox 是解法更好。'},
+  {n:6, b:'取消与超时同时发生，事务边界怎么保证号源只归还一次？',
+   p:'两个事务都执行带状态条件的更新（CAS），同一条预约只可能有一个把状态从有效改成终态成功；
+   成功的那个受影响行数 = 1 才去归还号源，失败的 = 0 就不归还。
+   核心词：<strong>受影响行数决定谁该干活</strong>。'}
+];
+
+function field(id, label, mono, minH){
+  return '<label>'+label+'</label><textarea '+(mono?'class="mono" ':'')+'id="'+id+'"'+(minH?' style="min-height:'+minH+'px"':'')+'></textarea>';
+}
+
+const apiBox = document.getElementById('apis');
+let n = 0;
+API_GROUPS.forEach(g => {
+  const h = document.createElement('div');
+  h.className = 'grp';
+  h.textContent = g.g;
+  apiBox.appendChild(h);
+  g.items.forEach(it => {
+    n++;
+    const d = document.createElement('div');
+    d.className = 'q';
+    d.innerHTML =
+      '<p class="qno">接口 ' + n + '</p>' +
+      '<p class="qbody"><code>' + it.m + ' ' + it.p + '</code></p>' +
+      '<label>谁可以调（角色）</label><textarea id="api' + n + '_role" style="min-height:44px"></textarea>' +
+      '<label>成功返回什么状态码</label><textarea id="api' + n + '_ok" style="min-height:44px"></textarea>' +
+      '<label>可能失败的码 + 触发条件</label><textarea id="api' + n + '_err"></textarea>';
+    apiBox.appendChild(d);
+  });
+});
+
+const seqBox = document.getElementById('seqs');
+SEQS.forEach((s, i) => {
+  const d = document.createElement('div');
+  d.className = 'q';
+  d.innerHTML = '<p class="qno">第 ' + (i+1) + ' 张 / 共 ' + SEQS.length + ' 张</p>' +
+    '<p class="qbody">' + s.t + '</p><p style="font-weight:400;margin-bottom:12px">' + s.d + '</p>' +
+    field(s.k, '我的时序图', false, 150);
+  seqBox.appendChild(d);
+});
+
+const examBox = document.getElementById('exam');
+EXAM.forEach(q => {
+  const d = document.createElement('div');
+  d.className = 'q';
+  d.innerHTML = '<p class="qno">验收题 ' + q.n + ' / ' + EXAM.length + '</p>' +
+    '<p class="qbody">' + q.b + '</p>' +
+    field('exam' + q.n, '我的答案', false, 90) +
+    '<div class="pass"><b>过关标准：</b>' + q.p + '</div>';
+  examBox.appendChild(d);
+});
+
+const KEY = 'medflow_day4_';
+const savedEl = document.getElementById('saved');
+document.querySelectorAll('textarea').forEach(ta => {
+  const v = localStorage.getItem(KEY + ta.id);
+  if (v) ta.value = v;
+  ta.addEventListener('input', () => {
+    localStorage.setItem(KEY + ta.id, ta.value);
+    savedEl.textContent = '已保存 ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+    setTimeout(() => { savedEl.textContent = ''; }, 1800);
+  });
+});
+
+function exportMd() {
+  let md = '# W1 Day 4 · API、权限与事务时序 — 我的答案\n\n';
+  md += '## 开课两件确认\n\n**确认一（外键立场）**\n\n' +
+        (document.getElementById('c1').value.trim() || '（未填）') +
+        '\n\n**确认二（4 个事件）**\n\n' +
+        (document.getElementById('c2').value.trim() || '（未填）') + '\n\n';
+
+  md += '## 任务一：接口清单\n\n| 接口 | 谁可以调 | 成功 | 失败 |\n|---|---|---|---|\n';
+  let k = 0;
+  API_GROUPS.forEach(g => {
+    g.items.forEach(it => {
+      k++;
+      const gv = id => (document.getElementById(id).value.trim() || '-').replace(/\n/g, ' ');
+      md += '| ' + it.m + ' ' + it.p + ' | ' + gv('api'+k+'_role') + ' | ' +
+            gv('api'+k+'_ok') + ' | ' + gv('api'+k+'_err') + ' |\n';
+    });
+  });
+
+  md += '\n## 任务二：三张事务时序图\n\n';
+  SEQS.forEach((s, i) => {
+    md += '### ' + s.t + '\n\n' + (document.getElementById(s.k).value.trim() || '（未填）') + '\n\n';
+  });
+
+  md += '## 验收题\n\n';
+  EXAM.forEach(q => {
+    md += '**' + q.n + '. ' + q.b + '**\n\n' +
+          (document.getElementById('exam'+q.n).value.trim() || '（未填）') + '\n\n';
+  });
+
+  navigator.clipboard.writeText(md).then(() => {
+    const b = document.querySelector('button');
+    const old = b.textContent;
+    b.textContent = '已复制到剪贴板';
+    setTimeout(() => { b.textContent = old; }, 1600);
+  });
+}
+
+function clearAll() {
+  if (!confirm('确定清空所有填写内容？此操作不可撤销。')) return;
+  document.querySelectorAll('textarea').forEach(ta => {
+    ta.value = '';
+    localStorage.removeItem(KEY + ta.id);
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+### Java / Maven ###
+target/
+*.class
+
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.iws
+*.ipr
+
+### VS Code ###
+.vscode/
+
+### Eclipse ###
+.classpath
+.project
+.settings/
+.factorypath
+
+### Local runtime ###
+*.log
+logs/
+.env
+
+### Operating system ###
+.DS_Store
+Thumbs.db

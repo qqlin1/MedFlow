@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedFlow · W1 Day 3 作业：ER 模型与数据库约束</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background:#f4f5f7; margin:0; padding:24px; color:#222; }
+  .wrap { max-width: 1020px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; border-left: 4px solid #2f6fed; padding-left: 8px; }
+  .card { background:#fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .sub { color:#666; font-size: 13px; margin: 0 0 16px; }
+  .hint { background:#fffbe8; border:1px solid #f0e0a0; border-radius: 8px; padding: 10px 16px; font-size: 13.5px; }
+  .hint ul { margin: 6px 0; padding-left: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid #d8d8de; padding: 6px 8px; text-align: left; vertical-align: middle; }
+  th { background: #eef2fd; }
+  td.name { white-space: nowrap; font-weight: 600; }
+  td.desc { color:#777; font-size: 12px; }
+  select, input[type=text], textarea { font-family: inherit; font-size: 13px; padding: 5px 7px; border: 1px solid #c9c9d2; border-radius: 6px; box-sizing: border-box; }
+  select { width: 100%; }
+  input[type=text] { width: 100%; }
+  textarea { width: 100%; min-height: 54px; resize: vertical; }
+  textarea.sql { min-height: 200px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.5; }
+  #out { width: 100%; min-height: 200px; font-family: Consolas, monospace; font-size: 12px; }
+  .qa { margin: 10px 0; }
+  .qa label { display:block; font-weight: 600; margin-bottom: 4px; font-size: 13.5px; }
+  .actions { margin: 20px 0 8px; display:flex; gap: 10px; flex-wrap: wrap; }
+  button { font-size: 14px; padding: 9px 18px; border: 0; border-radius: 8px; cursor: pointer; background: #2f6fed; color: #fff; }
+  button.gray { background: #8a8f9c; }
+  button.green { background: #1e9e5a; }
+  #status { font-size: 13px; color: #1e9e5a; align-self: center; }
+  .tips { color:#888; font-size: 12.5px; }
+  details { margin: 8px 0 14px; }
+  summary { cursor: pointer; font-size: 13px; color: #2f6fed; }
+  pre { background:#f6f8fb; border:1px solid #dfe5ef; border-radius:8px; padding:12px; font-size:12.5px; overflow-x:auto; }
+  .blank { display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>MedFlow · W1 Day 3 作业：ER 模型与数据库约束</h1>
+    <p class="sub">学习者：<input type="text" data-save="name" placeholder="写你的名字" style="width:140px">　日期：<span id="date"></span>　<span id="saved" style="color:#1e9e5a"></span></p>
+
+    <div class="hint">
+      <b>提示卡（做题时可以看）</b>
+      <ul>
+        <li><b>存别人的 id</b> = 普通列；<b>外键</b> = 额外声明"这个 id 必须真实存在"，数据库当保安。</li>
+        <li>索引：主键自带；<b>经常出现在 WHERE 里的列建索引</b>；多列一起查建<b>联合索引</b>（最左前缀）；索引不是越多越好——每个索引都拖慢写入。</li>
+        <li>唯一约束 = 全表只许一份，重复插入直接报错；CHECK = 列级规则（如 remaining &gt;= 0）。</li>
+        <li>判定关系用一句话：<b>一个 A 有几个 B？一个 B 有几个 A？</b></li>
+        <li>10-12 号表（幂等/Outbox/审计）后面几周才登场，关系栏写"占位"即可。</li>
+      </ul>
+    </div>
+
+    <h2>任务 1：关系清单（12 行）</h2>
+    <p class="tips">前两列已固定。要填三样：①是谁的子表（存谁的 id，可写多个）②和上级的关系 ③两个关键字段。</p>
+    <table>
+      <thead><tr><th style="width:17%">表名</th><th style="width:16%">干什么</th><th style="width:22%">是谁的子表（存谁的 id）</th><th style="width:12%">关系</th><th>两个关键字段</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <h2>任务 2：你的第一批真 SQL</h2>
+    <p class="tips">写错了没关系，报错信息就是教材。质量标准对照下面的 slot 示范：字段带 COMMENT、有唯一约束、有索引。</p>
+    <details>
+      <summary>点开看 slot 示范（对照质量用，不许抄成答案）</summary>
+      <pre>CREATE TABLE slot (
+  id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  schedule_id  BIGINT UNSIGNED NOT NULL COMMENT '所属排班',
+  period       VARCHAR(16)  NOT NULL COMMENT '时段：AM/PM',
+  start_time   TIME NOT NULL,
+  end_time     TIME NOT NULL,
+  total_count  INT NOT NULL COMMENT '本场总号数，如 24',
+  remaining    INT NOT NULL COMMENT '剩余号数——防超卖主战场',
+  status       VARCHAR(16) NOT NULL DEFAULT 'OPEN' COMMENT 'OPEN可约/LOCKED停诊',
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_schedule_period (schedule_id, period),
+  KEY idx_status (status),
+  CONSTRAINT chk_remaining CHECK (remaining >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='号源池';</pre>
+    </details>
+    <div class="qa"><label>2.1 schedule（排班）——注意：同一个医生同一天同一时段不许排两个班，唯一约束建在哪？</label><textarea class="sql" data-save="sql1" placeholder="CREATE TABLE schedule (...)"></textarea></div>
+    <div class="qa"><label>2.2 appointment（预约）——字段 + 唯一约束 + 索引（患者查“我的预约”按什么列查？）</label><textarea class="sql" data-save="sql2" placeholder="CREATE TABLE appointment (...)"></textarea></div>
+
+    <h2>任务 3：三个思考题（每个两三句，说清立场）</h2>
+    <div class="qa"><label>a. 唯一约束 (slot_id, patient_id) 会拦住“取消后重新约同一个号池”的患者——合理吗？你的解决办法？（提示：MySQL 唯一索引允许多行 NULL）</label><textarea data-save="qa" placeholder="合理/不合理 + 怎么解决"></textarea></div>
+    <div class="qa"><label>b. appointment 要不要冗余存一个 doctor_id？（患者查“我的预约”要显示医生）</label><textarea data-save="qb" placeholder="存/不存 + 理由"></textarea></div>
+    <div class="qa"><label>c. 外键用不用？一句话立场（提示卡第一条 + 权衡两句话）</label><textarea data-save="qc" placeholder="用/不用 + 理由"></textarea></div>
+
+    <div class="actions">
+      <button class="green" onclick="generate()">生成提交文本</button>
+      <button onclick="copyOut()">复制到剪贴板</button>
+      <button class="gray" onclick="clearAll()">清空全部</button>
+      <span id="status"></span>
+    </div>
+
+    <h2>提交文本（点上面的按钮生成，整块复制发给老师）</h2>
+    <textarea id="out" readonly placeholder="填完后点「生成提交文本」"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = [
+  ["user", "账号、密码哈希、角色", false],
+  ["patient", "患者业务身份", false],
+  ["doctor", "医生业务身份", false],
+  ["department", "科室", false],
+  ["room", "诊室", false],
+  ["schedule", "排班（Day 2 状态机）", false],
+  ["slot", "号源池", false],
+  ["appointment", "预约", false],
+  ["appointment_status_history", "预约状态历史", false],
+  ["idempotency_record", "幂等键表（M4）", true],
+  ["outbox_message", "待发消息表（M7）", true],
+  ["audit_log", "操作留痕（占位，W8 前用）", true]
+];
+var KEY = "medflow_day3_worksheet_v1";
+
+function buildRows() {
+  var tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+  ROWS.forEach(function(r, i) {
+    var tr = document.createElement("tr");
+    var ph = r[2] ? "占位（后面几周讲）" : "如：doctor 表的 id";
+    tr.innerHTML =
+      '<td class="name">' + r[0] + '</td>' +
+      '<td class="desc">' + r[1] + '</td>' +
+      '<td><input type="text" data-save="r' + i + 'p" placeholder="' + ph + '"></td>' +
+      '<td><select data-save="r' + i + 'r">' +
+        '<option value="">--选--</option>' +
+        '<option value="1:1">1:1</option>' +
+        '<option value="N:1">N:1（多的一方）</option>' +
+        '<option value="占位">占位</option>' +
+      '</select></td>' +
+      '<td><input type="text" data-save="r' + i + 'f" placeholder="两个关键字段，如 doctor_id, schedule_date"></td>';
+    tb.appendChild(tr);
+  });
+}
+
+function save() {
+  var d = {};
+  document.querySelectorAll("[data-save]").forEach(function(el) { d[el.getAttribute("data-save")] = el.value; });
+  localStorage.setItem(KEY, JSON.stringify(d));
+  document.getElementById("saved").textContent = "已自动保存 " + new Date().toLocaleTimeString("zh-CN");
+}
+
+function load() {
+  var raw = localStorage.getItem(KEY);
+  if (!raw) return;
+  try {
+    var d = JSON.parse(raw);
+    document.querySelectorAll("[data-save]").forEach(function(el) {
+      var k = el.getAttribute("data-save");
+      if (d[k] !== undefined) el.value = d[k];
+    });
+  } catch (e) {}
+}
+
+function val(k) { var el = document.querySelector('[data-save="' + k + '"]'); return el ? el.value.trim() : ""; }
+
+function generate() {
+  var missing = [];
+  ROWS.forEach(function(r, i) {
+    if (i <= 8) {
+      if (!val("r" + i + "p")) missing.push(r[0] + "（上级）");
+      if (!val("r" + i + "r")) missing.push(r[0] + "（关系）");
+      if (!val("r" + i + "f")) missing.push(r[0] + "（关键字段）");
+    }
+  });
+  if (!val("sql1")) missing.push("schedule 建表 SQL");
+  if (!val("sql2")) missing.push("appointment 建表 SQL");
+  if (!val("qa")) missing.push("思考题 a");
+  if (!val("qb")) missing.push("思考题 b");
+  if (!val("qc")) missing.push("思考题 c");
+  if (missing.length) {
+    alert("还有 " + missing.length + " 项没填：\n" + missing.join("、") + "\n\n填完再生成。");
+    return;
+  }
+  var L = [];
+  var name = val("name") || "（没写名字）";
+  L.push("【MedFlow Day 3 作业提交】学习者：" + name + "　日期：" + new Date().toLocaleDateString("zh-CN"));
+  L.push("");
+  L.push("## 任务1 关系清单");
+  L.push("| 表名 | 是谁的子表（存谁的 id） | 关系 | 两个关键字段 |");
+  L.push("|---|---|---|---|");
+  ROWS.forEach(function(r, i) {
+    L.push("| " + r[0] + " | " + (val("r" + i + "p") || "占位") + " | " + (val("r" + i + "r") || "占位") + " | " + (val("r" + i + "f") || "占位") + " |");
+  });
+  L.push("");
+  L.push("## 任务2.1 schedule 建表 SQL");
+  L.push("```sql");
+  L.push(val("sql1"));
+  L.push("```");
+  L.push("");
+  L.push("## 任务2.2 appointment 建表 SQL");
+  L.push("```sql");
+  L.push(val("sql2"));
+  L.push("```");
+  L.push("");
+  L.push("## 任务3 思考题");
+  L.push("a. " + val("qa"));
+  L.push("");
+  L.push("b. " + val("qb"));
+  L.push("");
+  L.push("c. " + val("qc"));
+  document.getElementById("out").value = L.join("\n");
+  flash("已生成，点击「复制到剪贴板」或手动全选复制");
+}
+
+function copyOut() {
+  var t = document.getElementById("out");
+  if (!t.value) { flash("先点「生成提交文本」"); return; }
+  t.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t.value).then(function() { flash("已复制，去聊天窗口粘贴"); }, function() { fallbackCopy(t); });
+  } else { fallbackCopy(t); }
+}
+function fallbackCopy(t) {
+  try { document.execCommand("copy"); flash("已复制，去聊天窗口粘贴"); }
+  catch (e) { flash("复制失败，请手动 Ctrl+A、Ctrl+C"); }
+}
+
+function clearAll() {
+  if (!confirm("确定清空全部填写内容？")) return;
+  localStorage.removeItem(KEY);
+  location.reload();
+}
+
+function flash(msg) {
+  var s = document.getElementById("status");
+  s.textContent = msg;
+  setTimeout(function() { s.textContent = ""; }, 4000);
+}
+
+document.getElementById("date").textContent = new Date().toLocaleDateString("zh-CN");
+buildRows();
+load();
+document.addEventListener("input", function(e) { if (e.target.matches("[data-save]")) save(); });
+document.addEventListener("change", function(e) { if (e.target.matches("[data-save]")) save(); });
+</script>
+</body>
+</html>

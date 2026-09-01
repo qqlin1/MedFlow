@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>场景题 02 · 并发重复预约（路线一 + 路线二综合）</title>
+<style>
+:root{
+  --bg:#faf9f7; --surface:#ffffff; --surface2:#f3f1ec; --border:#e3e0d8;
+  --text:#2c2c2a; --muted:#6b6a66;
+  --accent:#1d9e75; --accent-soft:#e1f5ee; --accent-line:#0f6e56;
+  --warn:#a32d2d; --warn-soft:#fcebeb; --warn-line:#993c1d;
+  --blue:#185fa5; --blue-soft:#e6f1fb; --blue-line:#0c447c;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1a1a19; --surface:#242422; --surface2:#2e2e2b; --border:#3d3d39;
+    --text:#eceae5; --muted:#9a9892;
+    --accent:#5dcaa5; --accent-soft:#085041; --accent-line:#5dcaa5;
+    --warn:#f09595; --warn-soft:#791f1f; --warn-line:#f09595;
+    --blue:#85b7eb; --blue-soft:#0c447c; --blue-line:#85b7eb;
+  }
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:0 20px 80px; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px; line-height:1.78;
+}
+.wrap{max-width:900px;margin:0 auto}
+header{padding:48px 0 8px;border-bottom:1px solid var(--border);margin-bottom:30px}
+h1{font-size:25px;font-weight:600;margin:0 0 8px;letter-spacing:-.3px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+h2{font-size:19px;font-weight:600;margin:44px 0 14px;padding-top:22px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:16px;font-weight:600;margin:26px 0 8px}
+p{margin:0 0 13px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;background:var(--surface2);padding:1px 5px;border-radius:4px}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:15px 17px;overflow-x:auto;font-size:13px;line-height:1.65;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre code{background:none;padding:0}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--surface2);font-weight:600}
+.fact{background:var(--blue-soft);border-left:3px solid var(--blue-line);padding:16px 22px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.fact p{margin:0 0 8px}
+.fact p:last-child{margin:0}
+.note{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:15px 20px;margin:14px 0;font-size:14px}
+.q{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin:18px 0}
+.qhead{font-weight:600;font-size:16px;margin:0 0 4px}
+.qno{color:var(--muted);font-size:13px;font-family:ui-monospace,monospace;margin:0 0 12px}
+.qbody{margin:0 0 14px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+textarea{
+  width:100%;min-height:96px;padding:10px 13px;border:1px solid var(--border);border-radius:7px;
+  background:var(--bg);color:var(--text);font-size:14px;line-height:1.7;resize:vertical;font-family:inherit;
+}
+textarea:focus{outline:none;border-color:var(--accent-line);background:var(--surface)}
+.pass{background:var(--accent-soft);border-radius:8px;padding:12px 18px;margin-top:12px;font-size:13.5px}
+.pass b{color:var(--accent-line)}
+.bar{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);margin-top:36px;padding:14px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+button:hover{opacity:.88}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.saved{font-size:13px;color:var(--muted)}
+ul,ol{margin:0 0 14px;padding-left:22px}
+li{margin-bottom:7px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>场景题 02 · 并发重复预约</h1>
+  <p class="sub">路线一（防超卖）+ 路线二（幂等）综合 — 题目自带全部信息，不需要回看任何资料</p>
+</header>
+
+<h2>第一部分：表结构（三张表，完整定义）</h2>
+
+<h3>表 1：幂等记录表 <code>sys_idempotency_record</code></h3>
+<pre><code>CREATE TABLE sys_idempotency_record (
+  id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id         BIGINT       NOT NULL,
+  operation_type  VARCHAR(32)  NOT NULL,
+  idempotency_key VARCHAR(64)  NOT NULL,
+  status          VARCHAR(16)  NOT NULL,   -- 取值只有两种：PROCESSING / SUCCESS
+  result_json     TEXT,                    -- 成功时缓存的业务响应
+  UNIQUE KEY uk_user_op_key (user_id, operation_type, idempotency_key)
+);</code></pre>
+
+<h3>表 2：号源表 <code>med_slot</code></h3>
+<pre><code>CREATE TABLE med_slot (
+  id                 BIGINT PRIMARY KEY,
+  work_date          DATE         NOT NULL,
+  total_capacity     INT          NOT NULL,   -- 总容量
+  remaining_capacity INT          NOT NULL,   -- 剩余容量
+  status             VARCHAR(16)  NOT NULL    -- 取值：OPEN / CLOSED
+);</code></pre>
+
+<h3>表 3：预约表 <code>med_appointment</code></h3>
+<pre><code>CREATE TABLE med_appointment (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  patient_id  BIGINT      NOT NULL,
+  slot_id     BIGINT      NOT NULL,
+  status      VARCHAR(32) NOT NULL,  -- PENDING_CONFIRMATION / BOOKED / CANCELLED / EXPIRED
+  active_flag TINYINT AS (
+      CASE WHEN status IN ('PENDING_CONFIRMATION','BOOKED') THEN 1 ELSE NULL END
+  ) VIRTUAL,
+  UNIQUE KEY uk_patient_slot_active (patient_id, slot_id, active_flag)
+);</code></pre>
+
+<h2>第二部分：初始数据</h2>
+<pre><code>INSERT INTO med_slot VALUES (88, '2026-09-10', 50, 1, 'OPEN');</code></pre>
+<p class="note"><strong>这句话的意思</strong>：号源 id = 88，就诊日期 2026-09-10，总容量 50 个号，
+<strong>现在只剩 1 个号</strong>，状态是开放预约。<br>
+另外两张表（幂等记录表、预约表）此刻<strong>都是空的</strong>。</p>
+
+<h2>第三部分：后端代码</h2>
+
+<h3>Service 方法</h3>
+<pre><code>@Transactional
+public Appointment book(BookCommand cmd) {
+    IdempotencyRecord rec;
+
+    // 第 1 步：往幂等记录表插一条 PROCESSING 记录
+    try {
+        rec = idempotencyMapper.insertAndGet(cmd.userId(), "BOOK", cmd.requestId());
+    } catch (DuplicateKeyException e) {
+        // 第 2 步：插入失败 = 有人先插过同一个 key，回查那条记录
+        rec = idempotencyMapper.selectForUpdate(cmd.userId(), "BOOK", cmd.requestId());
+
+        if (rec == null) {
+            rec = idempotencyMapper.insertAndGet(cmd.userId(), "BOOK", cmd.requestId());
+        } else if ("PROCESSING".equals(rec.getStatus())) {
+            throw new ConflictException("处理中");
+        } else {
+            return deserialize(rec.getResultJson());
+        }
+    }
+
+    // 第 3 步：扣减号源
+    int rows = slotMapper.decreaseIfAvailable(cmd.slotId());
+    if (rows == 0) throw new SoldOutException();
+
+    // 第 4 步：插入预约记录
+    Appointment appt = new Appointment(cmd.patientId(), cmd.slotId(), "PENDING_CONFIRMATION");
+    appointmentMapper.insert(appt);
+
+    // 第 5 步：把幂等记录改成 SUCCESS 并缓存结果
+    idempotencyMapper.markSuccess(rec.getId(), toJson(appt));
+    return appt;
+}</code></pre>
+
+<h3>第 3 步那条 SQL（<code>decreaseIfAvailable</code>）</h3>
+<pre><code>UPDATE med_slot
+   SET remaining_capacity = remaining_capacity - 1
+ WHERE id = #{slotId}
+   AND status = 'OPEN'
+   AND remaining_capacity > 0</code></pre>
+<p class="note">这条 SQL 的返回值是「受影响行数」：扣减成功返回 1，没扣成返回 0。</p>
+
+<h2>第四部分：发生的事件</h2>
+
+<p>用户张三登录了系统。系统里有两条关于他的数据：</p>
+<ul>
+  <li><strong>登录账号</strong> <code>user_id = 1001</code></li>
+  <li><strong>就诊人</strong> <code>patient_id = 2001</code>（就是张三本人）</li>
+</ul>
+
+<p>张三在前端页面点击「确认预约」按钮，约的是号源 88。</p>
+
+<p><strong>前端的行为</strong>：点击那一刻，前端生成了一个字符串 <code>requestId = "REQ-AAA"</code>，
+作为这次预约的唯一标识发给后端。因为网络卡顿，前端等了 3 秒没收到响应，
+触发了<strong>超时重试机制</strong>——于是前端<strong>用同一个 requestId</strong> 又发了一次请求。</p>
+
+<p>结果：服务器<strong>几乎同时</strong>收到了两个 HTTP 请求，参数完全一样：</p>
+
+<table>
+  <tr><th>请求</th><th>userId</th><th>patientId</th><th>slotId</th><th>requestId</th></tr>
+  <tr><td><strong>请求 P</strong>（第一次点击）</td><td>1001</td><td>2001</td><td>88</td><td>REQ-AAA</td></tr>
+  <tr><td><strong>请求 Q</strong>（前端超时重试）</td><td>1001</td><td>2001</td><td>88</td><td>REQ-AAA</td></tr>
+</table>
+
+<p>两个请求各自开启一个数据库事务，各自执行上面那段 <code>book</code> 方法。</p>
+
+<h2>第五部分：答题前，先确认这些背景事实</h2>
+<p>下面五条是<strong>事实陈述</strong>，不是答案。如果你对哪一条不熟悉，先把它看懂再开始答题。</p>
+<div class="fact">
+  <p><strong>事实 1 · 1062</strong>：往一张表插入数据时，如果违反了这张表的唯一索引（要插的值组合起来已经存在），
+  MySQL 会报错，错误码是 <code>1062 Duplicate entry</code>。
+  在 Spring 里它表现为 <code>DuplicateKeyException</code>。</p>
+  <p><strong>事实 2 · 1205</strong>：一条 SQL 要修改某一行，但那一行正被另一个还没提交的事务锁着，
+  这条 SQL 就得排队等。等的时间超过 <code>innodb_lock_wait_timeout</code>（<strong>默认 50 秒</strong>）
+  就会报错，错误码是 <code>1205 Lock wait timeout exceeded</code>。</p>
+  <p><strong>事实 3 · 锁什么时候释放</strong>：事务对某一行加的锁，<strong>要到这个事务提交（COMMIT）或回滚（ROLLBACK）时才释放</strong>，
+  不是那一条 SQL 执行完就释放。这叫两阶段锁协议。</p>
+  <p><strong>事实 4 · 快照读与当前读</strong>：MySQL 默认隔离级别是「可重复读 RR」。
+  在同一个事务里，普通的 <code>SELECT</code> 叫<strong>快照读</strong>，它读的是这个事务<strong>第一次执行 SELECT 那一刻</strong>
+  拍下的数据快照——之后别的事务提交了什么新数据，它都看不见。
+  而 <code>SELECT ... FOR UPDATE</code> 叫<strong>当前读</strong>，它绕过快照，直接读数据库此刻最新的数据。</p>
+  <p><strong>事实 5 · 只回滚那一条语句</strong>：一条 SQL 报错时，MySQL 默认<strong>只回滚报错的那一条语句</strong>，
+  <strong>整个事务还活着</strong>。只有死锁（错误码 1213）才会让 MySQL 回滚整个事务。</p>
+</div>
+
+<h2>第六部分：请回答下面五道题</h2>
+
+<div id="qs"></div>
+
+<div class="bar">
+  <button onclick="exportMd()">复制我的答案（Markdown）</button>
+  <button class="ghost" onclick="clearAll()">清空重填</button>
+  <span class="saved" id="saved"></span>
+</div>
+
+</div>
+
+<script>
+const QS = [
+  {
+    n:1,
+    body:'两个请求都执行完毕（并且都成功结束）之后，请回答：<br><br>' +
+         '（a）<code>med_appointment</code> 表里一共有几条记录？<br>' +
+         '（b）<code>med_slot</code> 表里 id = 88 这一行的 <code>remaining_capacity</code> 是多少？<br>' +
+         '（c）这个结果是<strong>由哪一条 SQL</strong> 决定的？请指出具体是哪条 SQL、它的哪个条件起了作用。',
+    pass:'（a）和（b）答对数值；（c）能指出是 <code>decreaseIfAvailable</code> 那条 UPDATE 决定的，' +
+         '并且说清是它的哪个条件（<code>remaining_capacity > 0</code>）起了作用。' +
+         '只答数值不说原因 = 不过关。'
+  },
+  {
+    n:2,
+    body:'请求 Q 最终返回给前端的是什么？是一个报错，还是某个业务结果？<br><br>' +
+         '如果是报错，请说出是什么错误；如果是业务结果，请说出<strong>具体返回的是哪一条数据</strong>' +
+         '（比如"返回了 id 为多少的预约记录"），并指出代码里是<strong>哪一行</strong>决定了这个返回。',
+    pass:'说出：返回的是<strong>请求 P 创建的那条预约</strong>（两者是同一个 appointmentId，不是新建的第二条），' +
+         '并指出走的是代码里的这一行 <code>return deserialize(rec.getResultJson());</code>。' +
+         '能额外说出"为什么要返回首次结果而不是报错"更好。'
+  },
+  {
+    n:3,
+    body:'假设时间线走到这里：请求 P 已经执行完了 <code>slotMapper.decreaseIfAvailable(88)</code> 这一行，' +
+         '但<strong>事务还没提交</strong>。此刻请求 Q 在做什么？<br><br>' +
+         '（a）请求 Q 是立刻失败，还是在等待？<br>' +
+         '（b）如果在等待，它等的是什么？<br>' +
+         '（c）它要等到什么时候为止？',
+    pass:'（a）在等待，不是立刻失败 —— 这一点说错的话整道题就废了。<br>' +
+         '（b）等的是 <code>sys_idempotency_record</code> 表上 <code>uk_user_op_key</code> ' +
+         '这条唯一索引对应的锁：请求 P 插入了 (1001, BOOK, REQ-AAA) 但没提交，' +
+         '请求 Q 要插入完全相同的值就必须排队等 P 的锁。<br>' +
+         '（c）等到请求 P 的事务<strong>提交或回滚</strong>为止（不是等到 P 那条 SQL 执行完）。'
+  },
+  {
+    n:4,
+    body:'代码第 2 步里有一行 <code>idempotencyMapper.selectForUpdate(...)</code>，' +
+         '它执行的 SQL 末尾带了 <code>FOR UPDATE</code>（当前读）。<br><br>' +
+         '现在假设把它改成<strong>不带 FOR UPDATE 的普通 SELECT</strong>（也就是快照读）。' +
+         '请回答：<br><br>' +
+         '（a）在什么情况下，这个改动会让程序出问题？<br>' +
+         '（b）出的是什么问题？请描述具体会发生什么。',
+    pass:'（a）当请求 Q 在<strong>抢幂等记录之前</strong>已经执行过一次 SELECT' +
+         '（或者在同一个事务里已经建立过 read view）时，就会出问题。<br>' +
+         '（b）请求 P 明明已经提交成功了，但请求 Q 的快照读看到的还是"read view 建立那一刻"的旧数据，' +
+         '<strong>看不见 P 刚提交的那条幂等记录</strong>，于是要么误判成"记录不存在"去重复执行业务，' +
+         '要么拿到错误的旧状态。<br>' +
+         '核心得分点：说出"快照读看历史、当前读看最新"，以及 read view 的建立时机。'
+  },
+  {
+    n:5,
+    body:'换一个假设：请求 P 执行完 <code>decreaseIfAvailable(88)</code> 之后，' +
+         '应用服务器发生了长时间的 <strong>Full GC</strong>（JVM 暂停所有业务线程去回收内存，停了 60 秒），' +
+         '导致请求 P 的<strong>事务一直卡着，既没提交也没回滚</strong>。<br><br>' +
+         '请回答：<br><br>' +
+         '（a）请求 Q 会怎么样？<br>' +
+         '（b）请求 Q 最终会报什么错？<strong>错误码是多少？</strong><br>' +
+         '（c）这个错误和"重复提交"时报的 1062，<strong>含义有什么不同</strong>？<br>' +
+         '（d）这个错误发生时，请求 Q 的整个事务会回滚吗？',
+    pass:'（a）请求 Q 一直排队等锁。<br>' +
+         '（b）等满 50 秒（默认值）后报错，错误码 <code>1205</code>，不是 1062。<br>' +
+         '（c）<strong>1062 表示"确实有重复请求"</strong>，是正常业务分支，走回查；' +
+         '<strong>1205 表示"前面的事务卡住了"</strong>，是系统异常，应该快速失败并告警。' +
+         '两者含义完全不同，catch 分支要分开处理 —— 这是核心得分点。<br>' +
+         '（d）<strong>不会</strong>。1205 默认只回滚报错的那一条语句，整个事务还活着，' +
+         '如果代码 catch 住又不继续抛异常，事务会带着部分写入被提交出去（这是个严重 bug）。'
+  }
+];
+
+const box = document.getElementById('qs');
+QS.forEach(q => {
+  const d = document.createElement('div');
+  d.className = 'q';
+  d.innerHTML =
+    '<p class="qno">第 ' + q.n + ' 题 / 共 ' + QS.length + ' 题</p>' +
+    '<p class="qbody">' + q.body + '</p>' +
+    '<label>我的答案</label>' +
+    '<textarea id="q' + q.n + '"></textarea>' +
+    '<div class="pass"><b>过关标准：</b>' + q.pass + '</div>';
+  box.appendChild(d);
+});
+
+const KEY = 'medflow_drill_02_';
+const savedEl = document.getElementById('saved');
+document.querySelectorAll('textarea').forEach(ta => {
+  const v = localStorage.getItem(KEY + ta.id);
+  if (v) ta.value = v;
+  ta.addEventListener('input', () => {
+    localStorage.setItem(KEY + ta.id, ta.value);
+    savedEl.textContent = '已保存 ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+    setTimeout(() => { savedEl.textContent = ''; }, 1800);
+  });
+});
+
+function exportMd() {
+  let md = '# 场景题 02 · 并发重复预约 — 我的答案\n\n';
+  QS.forEach(q => {
+    const ta = document.getElementById('q' + q.n);
+    md += '## 第 ' + q.n + ' 题\n\n' + (ta.value.trim() || '（未填）') + '\n\n';
+  });
+  navigator.clipboard.writeText(md).then(() => {
+    const b = document.querySelector('button');
+    const old = b.textContent;
+    b.textContent = '已复制到剪贴板';
+    setTimeout(() => { b.textContent = old; }, 1600);
+  });
+}
+
+function clearAll() {
+  if (!confirm('确定清空所有答案？此操作不可撤销。')) return;
+  document.querySelectorAll('textarea').forEach(ta => {
+    ta.value = '';
+    localStorage.removeItem(KEY + ta.id);
+  });
+}
+</script>
+</body>
+</html>
