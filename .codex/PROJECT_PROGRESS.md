@@ -406,6 +406,8 @@ Git 提交 SHA
 - `mvnw.cmd clean package` 通过，生成可执行 JAR；JAR 在 8080 启动成功，无业务接口时根路径返回预期 404，随后完成优雅停机。
 - 首次规范 Git 提交：`7cbfdf7`（`chore: initialize MedFlow Spring Boot project`）。
 - Day 5 工程部分已完成，课程状态进入 `VERIFYING`；仍需完成 Maven 生命周期、IOC 与自动配置口述验收。
+- 2026-09-03 首次口述结果：Maven 生命周期和 IOC/DI 主体方向正确；仍混淆 `package` 与启动、Starter 与自动配置、手动 `new` 对事务代理的影响，暂不标记 `ACCEPTED`。
+- 已建立复习卡 `.codex/DAY5_MAVEN_IOC_AUTOCONFIG_REVIEW.md`，计划于 2026-09-04 再次复习并口述验收。
 
 ## 14. 当前唯一下一步
 
