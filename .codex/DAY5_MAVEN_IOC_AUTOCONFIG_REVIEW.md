@@ -2,9 +2,9 @@
 
 > 建立日期：2026-09-03
 >
-> 下次复习：2026-09-04
+> 下次复习：2026-09-07（学习者要求晨间重测收口）
 >
-> 当前状态：`REVIEW_DUE`（首次口述未通过，工程初始化已完成）
+> 当前状态：`REVIEW_DUE`（2026-09-06 补讲后重答大体通过；保留两点见第 8 节）
 
 ## 1. 必须守住的四条边界
 
@@ -94,3 +94,10 @@ java -jar target/medflow-0.0.1-SNAPSHOT.jar
 2. IOC 与 DI 分别是什么？手动 `new AppointmentService` 会失去什么？
 3. `starter-web` 与自动配置分别负责什么？
 4. 从 `.\mvnw.cmd clean package` 到 Tomcat 监听 8080，完整讲出构建链和启动链。
+
+## 8. 2026-09-06 补讲后重答记录
+
+- 已能按序讲出：读 pom 解析依赖 → clean 独立清理 target → default 生命周期 validate→compile→test→package → `SpringApplication.run` 创建容器 → 组件扫描 → 依赖注入 → 自动配置 → Tomcat 监听 8080。顺序无错。
+- 保留点一："打包后就可以启动"仍把两条链说成连续动作，没有明确说出断点——package 产物是 target/ 里的静态 JAR，必须由 `java -jar` 或 IDE 显式执行它。
+- 保留点二：未把 springdoc 的 Bean 归属到启动链的"自动配置"一步。
+- 处理：不标记 `ACCEPTED`；学习者自定 2026-09-07 晨间重测，两条链默写加上两个保留点，通过后本卡闭环。

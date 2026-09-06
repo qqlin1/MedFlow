@@ -1,3 +1,38 @@
 spring:
   application:
     name: medflow
+
+  datasource:
+    url: ${MEDFLOW_DB_URL:jdbc:mysql://127.0.0.1:3306/medflow?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${MEDFLOW_DB_USERNAME:root}
+    password: ${MEDFLOW_DB_PASSWORD}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    baseline-on-migrate: false
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId}]"
+
+# 接口文档默认全关：文档等于接口地图，非 local 环境不得暴露
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+---
+# 仅 local 激活；profile 文档叠加在默认文档之上，同名键以它为准
+spring:
+  config:
+    activate:
+      on-profile: local
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

@@ -14,10 +14,10 @@
 | 主线周期 | 8 周；之后最多选择一个扩展 |
 | 每日基准时间 | 约 4 小时 |
 | 学习方式 | 学习者本人手打源码；助手默认不直接修改项目源码 |
-| 当前课程 | W1 Day 6：Flyway 与统一 Web 规范（知识导入中；Day 5 口述复习债保留） |
+| 当前课程 | W1 Day 7：进入 OpenAPI 接口文档；按学习者要求后置测试代码专题，Day 5 口述与 Trace ID 验证债保留 |
 | 当前里程碑 | M1：项目骨架与统一规范 |
 | 当前总体状态 | `IN_PROGRESS` |
-| 下一步唯一动作 | 理解 Profile、数据源、连接池与 Flyway 的职责边界 |
+| 下一步唯一动作 | 接入 springdoc，在 local 环境打开 Swagger UI 并手工调用现有接口 |
 
 ## 2. 范围冻结
 
@@ -48,13 +48,15 @@
 1. 先展示完整课程目录、当天唯一主题和下课条件，不用无止境追问代替教学。
 2. 教学顺序固定为：知识全貌 → 项目作用 → 数据/调用流程 → 学习者手打或设计 → 测试验收 → 当天八股 → 进度记录 → 次日预告。
 3. 每个知识点必须绑定代码、SQL、测试、日志或故障现象；不为背名词增加业务模块。
-4. 测试与功能同时开发，不能把事务、权限和状态机测试拖到最后。
+4. 2026-09-06 按学习者要求调整：自动化测试代码与测试设计思路后置为独立专题，不阻塞当前主线；已有测试保留，功能开发仍做必要编译和手工验证。权限、事务、状态竞争及并发证据列为待补，未验证能力不标记已验收。
 5. MySQL 预约未证明正确前不引入 Redis；幂等取消未证明正确前不引入 RabbitMQ。
 6. Redis 主线只做查询缓存；RabbitMQ 主线只做预约超时关闭。
 7. 简历只记录已经实现并验证过的能力和数字。
 8. 之前关于行锁、条件更新、事务和幂等的零散问答只算预习，不计为正式完成。
 9. 每周必须留下“问题—方案比较—失败处理—验证结果”的证据。
 10. 项目主线不承担全部八股和算法；每天另留固定时间学习。
+11. 概念讲解固定五段模板：一句话定义 → 没有它会怎样 → 工作机制（不超过 5 步）→ 真实样子（配置或代码）→ 边界（管什么、不管什么）。
+12. 批改固定三段式：标准答案与思路 → 学习者答案与标准的差距 → 常见错误为什么不成立。
 
 ## 4. 进度状态定义
 
@@ -90,7 +92,7 @@ Git 提交 SHA
 | 预约与排班状态机 | `ACCEPTED` | 2026-09-01 状态迁移表与竞争场景验收通过（DAY2_STATE_MACHINE_WORKSHEET.html + 口述补考） |
 | ER 图与数据库约束 | `ACCEPTED` | 2026-09-01 核心三表 DDL 与关系设计验收通过（DAY3_SCHEMA.sql，问答式设计） |
 | API 与事务时序图 | `ACCEPTED` | 2026-09-02 接口清单/状态码/权限/三时序图验收通过（DAY4_API_DESIGN.md） |
-| M1 骨架与统一规范 | `IN_PROGRESS` | Day 5 工程初始化完成：Git/main、Java 25、Spring Boot 3.5.16、Maven Wrapper 3.9.16、1 个上下文测试、可执行 JAR 与 HTTP 启动均已验证；Day 6 的 Flyway/Web 规范尚未开始 |
+| M1 骨架与统一规范 | `IN_PROGRESS` | Day 5 工程初始化完成；Day 6 已有 JDBC/Flyway 配置与 V1 迁移文件、统一响应/异常/Validation 和 local 验收接口；7 项实际 HTTP 验证通过，2026-09-06 核实 7 个 MockMvc 测试通过；Trace ID、OpenAPI、口述及本阶段提交待完成 |
 | M2 认证与数据权限 | `NOT_STARTED` | 无代码 |
 | M3 排班与号源 | `NOT_STARTED` | 无代码 |
 | M4 MySQL 预约 | `NOT_STARTED` | 无代码 |
@@ -103,7 +105,8 @@ Git 提交 SHA
 
 - 当前已有 M0 需求、状态机、DDL、API 与事务时序等设计产物，以及可运行的 Spring Boot 最小骨架。
 - 当前目录已初始化为 `main` 分支 Git 仓库。
-- 当前已具备 POM、Maven Wrapper、启动类、基础配置和 1 个 Spring 上下文测试；尚未接入 Flyway 与数据库运行环境。
+- 当前已具备 POM、Maven Wrapper、启动类、JDBC/MySQL/Flyway 配置与 V1 迁移文件、统一 Web 规范和 local 验收接口。2026-09-05 确认本地 MySQL 3306 与 MedFlow 8080 正在监听，并验证 7 项实际 HTTP 请求。
+- 当前 JUnit 测试源码包括 `MedFlowApplicationTests.contextLoads` 和 `WebCheckControllerTest` 的 7 个测试。2026-09-06 核实后者报告为 7 tests、0 failures、0 errors、0 skipped；上下文测试沿用此前通过记录，本次没有重新执行全套测试。
 - 本机 Git 2.51.0、Maven 3.9.16 和 Temurin JDK 25.0.3 可用。
 - 项目编译目标、Maven 运行时和应用运行时均已统一为 Java 25。
 - 当前没有 Docker；W1 只记录依赖，最迟在进入 Testcontainers 前完成环境准备。
@@ -416,8 +419,57 @@ Git 提交 SHA
 - Day 6 固定顺序：配置与数据库接入 → Flyway 迁移 → 统一响应/校验/异常 → Trace ID 与测试。
 - 当前第一步：理解 Profile、数据源、连接池和 Flyway 的职责边界，再开始修改工程。
 
+### 2026-09-05：Day 6 Web 实际 HTTP 验证通过，进入自动化测试学习
+
+- 源码：`ErrorCode`、`BusinessException`、`Result`、`GlobalExceptionHandler`、`WebCheckRequest`、`WebCheckController` 已由学习者手打；`patientId` 字段及号源正数校验提示已修正。
+- 包归属：跨功能共用的响应与异常代码保留在 `shared.web` / `shared.exception`；本地实验代码放 `devtools.controller` / `devtools.dto`，Controller 使用 `@Profile("local")`。正式业务后续按业务模块组织，在模块内部保留 Controller、Service、Mapper、DTO、Entity、VO 的职责划分；不预建空目录。
+- 编译：本次 `.\mvnw.cmd -DskipTests compile` 为 `BUILD SUCCESS`；编译通过不等于自动化测试通过。
+- HTTP 验证：使用已有的 local MedFlow 服务，通过真实请求检查状态码和响应 JSON 的 `code`、`message`、`data`，7 项全部通过。模拟 500 请求由 Global 转换为通用错误响应。
+
+| 场景 | HTTP 状态 | 业务码 | 结果 |
+|---|---|---|---|
+| GET /dev/web/success | 200 | SUCCESS | PASS，data 为 Web链路正常 |
+| GET /dev/web/sold-out | 409 | SLOT_SOLD_OUT | PASS，message 为 该号源已约满 |
+| GET /dev/web/unexpected | 500 | INTERNAL_SERVER_ERROR | PASS，message 为 服务器内部错误 |
+| POST /dev/web/validate，patientId=1、slotId=10 | 200 | SUCCESS | PASS，返回对应数据 |
+| POST /dev/web/validate，缺少 patientId | 400 | VALIDATION_FAILED | PASS，message 为 就诊人ID不能为空 |
+| POST /dev/web/validate，slotId=0 | 400 | VALIDATION_FAILED | PASS，message 为 号源ID必须大于0 |
+| POST /dev/web/validate，patientId 为 abc 字符串 | 400 | MALFORMED_REQUEST_BODY | PASS，message 为 请求体格式不正确 |
+
+- 测试边界：上述接口没有调用预约业务或执行数据库写入；不能据此认定预约、权限、事务或并发已验收。
+- 学习边界：已讲解枚举/异常对象/响应对象、ResponseEntity 的状态与 body、DTO 与 Entity 及包结构。学习者仍需在代码中巩固；未追加独立口述通过记录，Day 5 与 Day 6 均未因此标为 `ACCEPTED`。
+- 遗留：MockMvc 测试尚待手打与运行，随后学习 Trace ID；M1 还需 OpenAPI、周验收与本阶段 Git 提交。本次未提交代码。
+
+### 2026-09-06：MockMvc 七项测试通过，进入 Trace ID
+
+- 学习者已手打 `src/test/java/com/qqlin/medflow/devtools/controller/WebCheckControllerTest.java` 并报告成功。
+- 已核对本地源码和 `target/surefire-reports/com.qqlin.medflow.devtools.controller.WebCheckControllerTest.txt`（报告时间 2026-09-06 00:17）：7 tests、0 failures、0 errors、0 skipped，耗时 1.764 秒；本轮没有重复执行已通过的测试。
+- 覆盖成功响应、业务 409、未知 500、合法请求体、缺失就诊人 ID、非正号源 ID、数字字段类型错误；这属于 Web 切片验证，不代表预约业务或并发已验收。
+- 下一段 Trace ID 使用方案：当前同步请求由服务器生成 UUID，通过 `X-Trace-Id` 响应头返回；同一请求线程通过 MDC 的 `traceId` 关联日志；Filter 在 finally 中清理 MDC。`Result` 继续保持 code/message/data 三字段。
+- Trace ID 源码、日志配置和专用测试尚待学习者手打及验收；此时不标记 Day 6 整体 ACCEPTED，也不声明具备跨服务或异步链路追踪。
+
+### 2026-09-06：Trace ID 已手打，500 响应头已获得手工证据
+
+- 已检查 RequestTraceFilter 与 application.yml：服务器生成 UUID、设置 X-Trace-Id、MDC 日志格式以及 finally 清理均已写入；本轮未修改项目源码。
+- 学习者提供的 curl 输出为 HTTP 500，包含 X-Trace-Id: 1792438d-4291-49ba-899e-0678637470ae。该片段未包含响应体和服务器日志，因此不据此认定日志关联与全部验收通过。
+- 下一步提供独立过滤器单元测试：请求处理期间响应头与 MDC 一致，正常返回后清理，不同请求生成不同 ID，下游抛异常后仍清理。测试待学习者手打及执行，本轮未宣称通过。
+
+### 2026-09-06：调整教学顺序，测试专题后置
+
+- 学习者明确要求先按主项目进度推进，之后集中学习如何自己设计与编写测试。本次停止安排新增测试代码，不删除已有测试，不把后置事项记为通过。
+- 进入 Day 7 OpenAPI 接口文档接入；完成文档页面及现有接口手工调用后，继续 M2 认证与数据权限。
+- 后续测试专题从业务规则提取场景开始，学习正常/异常/边界用例、断言、单元/切片/集成测试选择，再补 Trace ID、权限、事务和并发测试。具体时间待后续安排，非定时提醒。
+- 本轮只调整课程文档，源码与配置由学习者手打；OpenAPI 尚未接入或验收。
+
+### 2026-09-06：Day 5 复习债重答，Day 7 手打进行中
+
+- Day 5 复习卡按"初答 → 补讲 → 重答"推进：重答已能按序讲出构建链（读 pom 解析依赖、clean 独立清理 target、validate→compile→test→package）与启动链（创建容器 → 组件扫描 → 依赖注入 → 自动配置 → Tomcat 监听 8080），顺序无错。
+- 保留两点，不标记 `ACCEPTED`：未明确说出两条链之间的断点（package 产物是 target/ 内的静态 JAR，需显式执行）；未把 springdoc 的 Bean 归属到启动链"自动配置"一步。学习者自定 2026-09-07 晨间重测收口。
+- Day 7：学习者已手打 pom.xml 引入 `springdoc-openapi-starter-webmvc-ui:2.8.17`。经学习者明确要求，本轮由助手代改 application.yml：全局 springdoc 开关改为 false，追加 `on-profile: local` 文档块仅 local 开启，代改过程已逐行讲解；编译、Swagger UI 正反验证仍由学习者执行，此后源码恢复学习者手打规则。
+- Day 7 剩余验收：编译、local 下 Swagger UI 打开并手工调用 /dev/web 接口、非 local 下文档与 /dev 接口均 404、规范 Git 提交、分层职责口述。
+
 ## 14. 当前唯一下一步
 
-Day 5 工程初始化与自动化验收已经完成，项目现在具备继续开发 Day 6 的最小可靠骨架；Day 5 知识口述作为并行复习债保留。
+Day 6 的统一响应、异常和参数校验已通过 7 项实际 HTTP 验证及 7 个 MockMvc 测试；Day 5 知识口述作为并行复习债保留。
 
-当前唯一下一步：学习 Day 6 第一段，讲清 Profile、数据源、连接池与 Flyway 各自负责什么。
+当前唯一下一步：接入 springdoc OpenAPI 与 Swagger UI，仅在 local Profile 开启文档，通过页面手工调用现有接口。测试代码专题后置；实际日志与响应头 ID 一致性仍待核对，M1 不因教学推进自动标记 ACCEPTED。
