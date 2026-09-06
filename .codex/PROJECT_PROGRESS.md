@@ -467,6 +467,8 @@ Git 提交 SHA
 - 保留两点，不标记 `ACCEPTED`：未明确说出两条链之间的断点（package 产物是 target/ 内的静态 JAR，需显式执行）；未把 springdoc 的 Bean 归属到启动链"自动配置"一步。学习者自定 2026-09-07 晨间重测收口。
 - Day 7：学习者已手打 pom.xml 引入 `springdoc-openapi-starter-webmvc-ui:2.8.17`。经学习者明确要求，本轮由助手代改 application.yml：全局 springdoc 开关改为 false，追加 `on-profile: local` 文档块仅 local 开启，代改过程已逐行讲解；编译、Swagger UI 正反验证仍由学习者执行，此后源码恢复学习者手打规则。
 - Day 7 剩余验收：编译、local 下 Swagger UI 打开并手工调用 /dev/web 接口、非 local 下文档与 /dev 接口均 404、规范 Git 提交、分层职责口述。
+- 2026-09-06 晚助手代跑 `-DskipTests compile`：BUILD SUCCESS，springdoc 2.8.17 依赖解析正常，该项验收通过。检测到 8080 存在旧进程（启动于 01:50，早于 02:46 的配置修改），其 /v3/api-docs 与 swagger-ui 返回 200 属旧配置行为，不作为新配置证据；在旧进程上复查 6 项 HTTP 与 Day 6 记录一致，Day 6 基线无回归。
+- 新配置证据待学习者重启取得：local 启动后经 Swagger UI 页面 Try it out 调用接口；非 local 启动确认 /v3/api-docs、/swagger-ui/index.html、/dev/web/* 均 404。
 
 ## 14. 当前唯一下一步
 
