@@ -10,7 +10,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.security.core.AuthenticationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -84,6 +87,16 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler({
+            MethodArgumentTypeMismatchException.class,
+            MissingRequestHeaderException.class
+    })
+    public ResponseEntity<Result<Void>> handleInvalidRequestParameter(
+            Exception exception
+    ) {
+        return buildResponse(ErrorCode.VALIDATION_FAILED);
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Result<Void>> handleNoResourceFound(
             NoResourceFoundException exception
@@ -136,5 +149,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
                 .body(body);
+    }
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Result<Void>> handleAuthenticationException(
+            AuthenticationException exception
+    ) {
+        return buildResponse(
+                ErrorCode.INVALID_CREDENTIALS
+        );
     }
 }
