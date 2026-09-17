@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.identity.mapper.UserMapper">
+
+    <resultMap id="UserAccountResultMap"
+               type="com.qqlin.medflow.identity.domain.UserAccount">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="role"
+                 javaType="com.qqlin.medflow.identity.domain.UserRole"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.identity.domain.UserStatus"/>
+            <arg column="token_version" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findByUsername" resultMap="UserAccountResultMap">
+        SELECT
+            id,
+            username,
+            password_hash,
+            role,
+            status,
+            token_version
+        FROM sys_user
+        WHERE username = #{username}
+    </select>
+</mapper>
