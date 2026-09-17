@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.patient.mapper.PatientMapper">
+
+    <resultMap id="PatientResultMap"
+               type="com.qqlin.medflow.patient.domain.Patient">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="owner_user_id" javaType="_long"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="gender"
+                 javaType="com.qqlin.medflow.patient.domain.PatientGender"/>
+            <arg column="birth_date" javaType="java.time.LocalDate"/>
+            <arg column="phone" javaType="java.lang.String"/>
+            <arg column="relationship" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert"
+            parameterType="com.qqlin.medflow.patient.mapper.PatientInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO med_patient (
+            owner_user_id,
+            name,
+            gender,
+            birth_date,
+            phone,
+            relationship
+        )
+        VALUES (
+            #{ownerUserId},
+            #{name},
+            #{gender,jdbcType=VARCHAR},
+            #{birthDate,jdbcType=DATE},
+            #{phone},
+            #{relationship}
+        )
+    </insert>
+
+    <select id="findByIdAndOwnerUserId" resultMap="PatientResultMap">
+        SELECT
+            id,
+            owner_user_id,
+            name,
+            gender,
+            birth_date,
+            phone,
+            relationship
+        FROM med_patient
+        WHERE id = #{patientId}
+          AND owner_user_id = #{ownerUserId}
+    </select>
+
+    <select id="findByOwnerUserId" resultMap="PatientResultMap">
+        SELECT
+            id,
+            owner_user_id,
+            name,
+            gender,
+            birth_date,
+            phone,
+            relationship
+        FROM med_patient
+        WHERE owner_user_id = #{ownerUserId}
+        ORDER BY id DESC
+    </select>
+</mapper>
