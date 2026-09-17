@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.appointment.mapper.AppointmentMapper">
+
+    <resultMap id="AppointmentResultMap"
+               type="com.qqlin.medflow.appointment.domain.Appointment">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="patient_id" javaType="_long"/>
+            <arg column="slot_id" javaType="_long"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.appointment.domain.AppointmentStatus"/>
+            <arg column="confirm_deadline" javaType="java.time.LocalDateTime"/>
+            <arg column="cancel_deadline" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findActiveAppointment" resultType="java.lang.Integer">
+        SELECT 1
+        FROM med_appointment
+        WHERE patient_id = #{patientId}
+          AND slot_id = #{slotId}
+          AND active_flag = 1
+        LIMIT 1
+    </select>
+
+    <insert id="insert"
+            parameterType="com.qqlin.medflow.appointment.mapper.AppointmentInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO med_appointment (
+            patient_id,
+            slot_id,
+            status,
+            confirm_deadline,
+            cancel_deadline
+        )
+        VALUES (
+            #{patientId},
+            #{slotId},
+            #{status,jdbcType=VARCHAR},
+            #{confirmDeadline,jdbcType=TIMESTAMP},
+            #{cancelDeadline,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <insert id="insertCreatedStatusLog">
+        INSERT INTO med_appointment_status_log (
+            appointment_id,
+            from_status,
+            to_status,
+            event_type,
+            actor_user_id
+        )
+        VALUES (
+            #{appointmentId},
+            NULL,
+            #{toStatus},
+            #{eventType},
+            #{actorUserId}
+        )
+    </insert>
+    <select id="lockOwnedByIdForUpdate"
+            resultMap="AppointmentResultMap"
+            useCache="false"
+            flushCache="true">
+        SELECT
+            appointment.id,
+            appointment.patient_id,
+            appointment.slot_id,
+            appointment.status,
+            appointment.confirm_deadline,
+            appointment.cancel_deadline
+        FROM med_appointment appointment
+        INNER JOIN med_patient patient
+            ON patient.id = appointment.patient_id
+        WHERE appointment.id = #{appointmentId}
+          AND patient.owner_user_id = #{ownerUserId}
+        FOR UPDATE
+    </select>
+
+    <!-- Run after the locking read: this statement's database timestamp is
+         obtained after any wait for the appointment lock, not before it. -->
+    <update id="markBookedIfPendingBeforeDeadline">
+        UPDATE med_appointment appointment
+        INNER JOIN med_patient patient
+            ON patient.id = appointment.patient_id
+        SET appointment.status = 'BOOKED'
+        WHERE appointment.id = #{appointmentId}
+          AND patient.owner_user_id = #{ownerUserId}
+          AND appointment.status = 'PENDING_CONFIRMATION'
+          AND appointment.confirm_deadline &gt; CURRENT_TIMESTAMP(3)
+    </update>
+
+    <insert id="insertConfirmedStatusLog">
+        INSERT INTO med_appointment_status_log (
+            appointment_id,
+            from_status,
+            to_status,
+            event_type,
+            actor_user_id
+        )
+        VALUES (
+            #{appointmentId},
+            'PENDING_CONFIRMATION',
+            'BOOKED',
+            'CONFIRMED',
+            #{actorUserId}
+        )
+    </insert>
+</mapper>

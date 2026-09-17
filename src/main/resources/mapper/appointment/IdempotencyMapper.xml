@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.appointment.mapper.IdempotencyMapper">
+
+    <resultMap id="IdempotencyRecordResultMap"
+               type="com.qqlin.medflow.appointment.domain.IdempotencyRecord">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="user_id" javaType="_long"/>
+            <arg column="operation_type" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="request_hash" javaType="java.lang.String"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.appointment.domain.IdempotencyStatus"/>
+            <arg column="appointment_id" javaType="java.lang.Long"/>
+            <arg column="result_json" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertProcessing"
+            parameterType="com.qqlin.medflow.appointment.mapper.IdempotencyInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO sys_idempotency_record (
+            user_id,
+            operation_type,
+            idempotency_key,
+            request_hash,
+            status
+        )
+        VALUES (
+            #{userId},
+            #{operationType},
+            #{idempotencyKey},
+            #{requestHash},
+            #{status,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <select id="lockByUniqueKey"
+            resultMap="IdempotencyRecordResultMap"
+            useCache="false"
+            flushCache="true">
+        SELECT
+            id,
+            user_id,
+            operation_type,
+            idempotency_key,
+            request_hash,
+            status,
+            appointment_id,
+            CAST(result_json AS CHAR) AS result_json
+        FROM sys_idempotency_record
+        WHERE user_id = #{userId}
+          AND operation_type = #{operationType}
+          AND idempotency_key = #{idempotencyKey}
+        FOR UPDATE
+    </select>
+
+    <update id="markSuccess">
+        UPDATE sys_idempotency_record
+        SET status = #{successStatus},
+            appointment_id = #{appointmentId},
+            result_json = #{resultJson,jdbcType=VARCHAR}
+        WHERE id = #{idempotencyRecordId}
+          AND status = #{processingStatus}
+    </update>
+</mapper>
