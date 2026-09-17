@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.organization.mapper.OrganizationMapper">
+
+    <resultMap id="DepartmentResultMap"
+               type="com.qqlin.medflow.organization.domain.Department">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.organization.domain.ResourceStatus"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="DoctorResultMap"
+               type="com.qqlin.medflow.organization.domain.Doctor">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="user_id" javaType="_long"/>
+            <arg column="department_id" javaType="_long"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.organization.domain.ResourceStatus"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="ClinicRoomResultMap"
+               type="com.qqlin.medflow.organization.domain.ClinicRoom">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="department_id" javaType="_long"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.organization.domain.ResourceStatus"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findDepartmentById" resultMap="DepartmentResultMap">
+        SELECT
+            id,
+            name,
+            status
+        FROM med_department
+        WHERE id = #{departmentId}
+    </select>
+
+    <select id="findEnabledDepartments" resultMap="DepartmentResultMap">
+        SELECT
+            id,
+            name,
+            status
+        FROM med_department
+        WHERE status = 'ENABLED'
+        ORDER BY name, id
+    </select>
+
+    <select id="findEnabledDoctorsByDepartmentId"
+            resultMap="DoctorResultMap">
+        SELECT
+            id,
+            user_id,
+            department_id,
+            name,
+            status
+        FROM med_doctor
+        WHERE department_id = #{departmentId}
+          AND status = 'ENABLED'
+        ORDER BY name, id
+    </select>
+
+    <select id="findEnabledClinicRoomsByDepartmentId"
+            resultMap="ClinicRoomResultMap">
+        SELECT
+            id,
+            department_id,
+            name,
+            status
+        FROM med_clinic_room
+        WHERE department_id = #{departmentId}
+          AND status = 'ENABLED'
+        ORDER BY name, id
+    </select>
+
+    <select id="lockDoctorById"
+            resultMap="DoctorResultMap"
+            useCache="false"
+            flushCache="true">
+        SELECT
+            id,
+            user_id,
+            department_id,
+            name,
+            status
+        FROM med_doctor
+        WHERE id = #{doctorId}
+        FOR UPDATE
+    </select>
+
+    <select id="lockClinicRoomById"
+            resultMap="ClinicRoomResultMap"
+            useCache="false"
+            flushCache="true">
+        SELECT
+            id,
+            department_id,
+            name,
+            status
+        FROM med_clinic_room
+        WHERE id = #{clinicRoomId}
+        FOR UPDATE
+    </select>
+
+    <insert id="insertDepartment"
+            parameterType="com.qqlin.medflow.organization.mapper.DepartmentInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO med_department (
+            name,
+            status
+        )
+        VALUES (
+            #{name},
+            #{status,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <insert id="insertClinicRoom"
+            parameterType="com.qqlin.medflow.organization.mapper.ClinicRoomInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO med_clinic_room (
+            department_id,
+            name,
+            status
+        )
+        VALUES (
+            #{departmentId},
+            #{name},
+            #{status,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <insert id="insertDoctor"
+            parameterType="com.qqlin.medflow.organization.mapper.DoctorInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO med_doctor (
+            user_id,
+            department_id,
+            name,
+            status
+        )
+        VALUES (
+            #{userId},
+            #{departmentId},
+            #{name},
+            #{status,jdbcType=VARCHAR}
+        )
+    </insert>
+</mapper>
