@@ -9,19 +9,20 @@
 |---|---|
 | 项目名称 | MedFlow 门诊资源调度与可靠预约系统 |
 | 项目定位 | 围绕有限号源，解决排班冲突、并发预约、幂等、状态竞争、可靠超时和数据权限 |
+| 求职目标 | 27 届、已有一段非头部公司实习；Java 后端为主线，Agent/AI 应用平台工程为并行方向 |
 | 简历角色 | 校招第一项目；OA 作为基础能力项目 |
 | 课程重置日期 | 2026-08-30 |
-| 主线周期 | 8 周；之后最多选择一个扩展 |
+| 主线周期 | 09-27 前形成可面试证据 V1，10-18 前补齐 Redis、MQ、部署与完整证据；保留原业务依赖顺序 |
 | 每日基准时间 | 约 4 小时 |
-| 学习方式 | 学习者本人手打源码；助手默认不直接修改项目源码 |
-| 当前课程 | W1 Day 7：进入 OpenAPI 接口文档；按学习者要求后置测试代码专题，Day 5 口述与 Trace ID 验证债保留 |
-| 当前里程碑 | M1：项目骨架与统一规范 |
+| 学习方式 | 2026-09-17 起按学习者授权由助手直接实现并验证；随后按文件讲解业务、方法、失败边界与面试表达，区分快速了解和必须讲透的内容 |
+| 当前课程 | S2 预约状态机：创建预约已有实现，本单元落地确认预约 PENDING_CONFIRMATION → BOOKED；课程材料见 APPOINTMENT_CONFIRMATION_LESSON.md |
+| 当前里程碑 | M3 排班发布已有代码、验收待补；M4 预约创建与确认推进中；保留 M1/M2 验收挂账 |
 | 当前总体状态 | `IN_PROGRESS` |
-| 下一步唯一动作 | 接入 springdoc，在 local 环境打开 Swagger UI 并手工调用现有接口 |
+| 执行入口 | 当前唯一动作只在 §14 维护 |
 
 ## 2. 范围冻结
 
-### 2.1 八周主线
+### 2.1 Java/MedFlow 核心主线
 
 ```text
 三角色权限
@@ -39,16 +40,17 @@
 | 分类 | 内容 |
 |---|---|
 | 完成主线后最多选一个 | 简单签到排队、一次性随访、Redis Lua 库存方案、SSE、敏感访问审计 |
-| 当前删除 | 护士、完整叫号接诊、复杂随访、AI/RAG、FHIR、MinIO、微服务、分库分表、完整监控大屏、完整前端 |
+| Java 主项目不做 | 护士、完整叫号接诊、复杂随访、AI 诊断/用药/科室推荐、FHIR、MinIO、微服务、分库分表、完整监控大屏、完整前端 |
+| 隔离并行线 | Agent 预约规则与号源查询助手 A0—A3；只用虚构数据，初版只读，不进入预约事务核心，不阻塞 S1—S3 |
 
-任何新增功能都要先回答：“它是否强化五个核心项目故事？”如果不能，就不进入当前路线。
+Java 主项目的新增功能都要先回答：“它是否强化五个核心项目故事？”如果不能，就不进入 MedFlow 主线；Agent 扩展只按独立 A0—A3 验收门槛推进。
 
 ## 3. 固定教学规则
 
 1. 先展示完整课程目录、当天唯一主题和下课条件，不用无止境追问代替教学。
-2. 教学顺序固定为：知识全貌 → 项目作用 → 数据/调用流程 → 学习者手打或设计 → 测试验收 → 当天八股 → 进度记录 → 次日预告。
+2. 教学顺序固定为：当前目标与业务规则 → 助手实现和验证 → 按文件讲解调用流程/方法 → 面试重点与学习者口述 → 进度记录 → 下一单元。
 3. 每个知识点必须绑定代码、SQL、测试、日志或故障现象；不为背名词增加业务模块。
-4. 2026-09-06 按学习者要求调整：自动化测试代码与测试设计思路后置为独立专题，不阻塞当前主线；已有测试保留，功能开发仍做必要编译和手工验证。权限、事务、状态竞争及并发证据列为待补，未验证能力不标记已验收。
+4. 自动化测试框架的系统教学后置，验收证据本身不后置。2026-09-17 起助手可设计并执行必要测试，再向学习者解释场景、断言和证据边界；权限、事务、状态竞争及并发能力没有负例证据时不标记验收。
 5. MySQL 预约未证明正确前不引入 Redis；幂等取消未证明正确前不引入 RabbitMQ。
 6. Redis 主线只做查询缓存；RabbitMQ 主线只做预约超时关闭。
 7. 简历只记录已经实现并验证过的能力和数字。
@@ -57,6 +59,11 @@
 10. 项目主线不承担全部八股和算法；每天另留固定时间学习。
 11. 概念讲解固定五段模板：一句话定义 → 没有它会怎样 → 工作机制（不超过 5 步）→ 真实样子（配置或代码）→ 边界（管什么、不管什么）。
 12. 批改固定三段式：标准答案与思路 → 学习者答案与标准的差距 → 常见错误为什么不成立。
+13. 学习优先级固定按“面试反复程度 × 实际开发价值 × 简历触发风险 × 项目依赖”排序，不再按框架源码目录顺序推进。
+14. 每个新单元固定走：真实场景 → 关联八股 → 至少两种方案 → 核心实现 → 失败/竞争实验 → 2—8 分钟口述。
+15. 代码默认由助手实现；DTO、基础映射、配置可快速了解；SQL、事务、锁、幂等、缓存、消息与权限必须结合真实代码和验证讲透，不能把代码生成记作学习者已经掌握。
+16. Security 的完成上限是登录/JWT、统一 401/403、RBAC、对象权限和负例验证；闭环后不继续逐个阅读内置 Filter 源码。
+17. Agent 线每天最多 45 分钟；没有稳定业务 API 时使用 Stub，不能提前改变 MedFlow 的核心模型或阻塞 S1—S3。
 
 ## 4. 进度状态定义
 
@@ -92,41 +99,56 @@ Git 提交 SHA
 | 预约与排班状态机 | `ACCEPTED` | 2026-09-01 状态迁移表与竞争场景验收通过（DAY2_STATE_MACHINE_WORKSHEET.html + 口述补考） |
 | ER 图与数据库约束 | `ACCEPTED` | 2026-09-01 核心三表 DDL 与关系设计验收通过（DAY3_SCHEMA.sql，问答式设计） |
 | API 与事务时序图 | `ACCEPTED` | 2026-09-02 接口清单/状态码/权限/三时序图验收通过（DAY4_API_DESIGN.md） |
-| M1 骨架与统一规范 | `IN_PROGRESS` | Day 5 工程初始化完成；Day 6 已有 JDBC/Flyway 配置与 V1 迁移文件、统一响应/异常/Validation 和 local 验收接口；7 项实际 HTTP 验证通过，2026-09-06 核实 7 个 MockMvc 测试通过；Trace ID、OpenAPI、口述及本阶段提交待完成 |
-| M2 认证与数据权限 | `NOT_STARTED` | 无代码 |
-| M3 排班与号源 | `NOT_STARTED` | 无代码 |
-| M4 MySQL 预约 | `NOT_STARTED` | 无代码 |
+| 2026 面经调研与任务重排 | `VERIFYING` | 已建立 `JAVA_BACKEND_AGENT_RESEARCH_2026.md`：24 份一手面经、1 份按 43 条记录统计的个人复盘、10 个定向 Agent 岗位及一手技术资料；待学习者审阅和 Git 固化 |
+| M1 骨架与统一规范 | `IN_PROGRESS` | Day 5 工程初始化完成；已有 JDBC/Flyway、V1 迁移、统一响应/异常/Validation、Trace Filter、local 验收接口及 springdoc 配置；7 项实际 HTTP 验证通过，最新磁盘报告显示 8 个 MockMvc 测试通过；OpenAPI 双向验证、口述及本阶段提交仍挂账 |
+| M2 认证与数据权限 | `IN_PROGRESS` | 登录/JWT、统一 401/403、角色级 RBAC 已完成：2026-09-08 编译、启动及正反 HTTP 证据通过。TokenVersion 对已签发 Bearer Token 的失效校验、禁用账号 Bearer 负例，以及医生/患者对象权限随 S1/S2 的真实领域接口滚动验收 |
+| M3 排班与号源 | `IN_PROGRESS` | 已有组织资源、模板读取、排班快照、创建草稿、事务内发布与 Slot 初始化；查询、关闭/取消与并发冲突等验收仍待补 |
+| M4 MySQL 预约 | `IN_PROGRESS` | 已有就诊人归属、创建幂等、条件扣号、有效预约唯一键和创建历史；本单元新增确认，取消/超时/查询尚未实现 |
 | M5 并发与 SQL 证据 | `NOT_STARTED` | 无测试数据和报告 |
 | M6 Redis 查询缓存 | `NOT_STARTED` | 无代码 |
 | M7 RabbitMQ 可靠超时 | `NOT_STARTED` | 无代码 |
 | M8 部署与面试证据 | `NOT_STARTED` | 无代码和报告 |
+| Agent 并行线 A0—A3 | `NOT_STARTED` | 仅完成岗位调研、范围与验收设计；尚无 Agent、RAG、Tool 或评测代码 |
 
 当前环境事实：
 
 - 当前已有 M0 需求、状态机、DDL、API 与事务时序等设计产物，以及可运行的 Spring Boot 最小骨架。
 - 当前目录已初始化为 `main` 分支 Git 仓库。
-- 当前已具备 POM、Maven Wrapper、启动类、JDBC/MySQL/Flyway 配置与 V1 迁移文件、统一 Web 规范和 local 验收接口。2026-09-05 确认本地 MySQL 3306 与 MedFlow 8080 正在监听，并验证 7 项实际 HTTP 请求。
-- 当前 JUnit 测试源码包括 `MedFlowApplicationTests.contextLoads` 和 `WebCheckControllerTest` 的 7 个测试。2026-09-06 核实后者报告为 7 tests、0 failures、0 errors、0 skipped；上下文测试沿用此前通过记录，本次没有重新执行全套测试。
+- 当前持久层已迁移至 MyBatis，存在 V1–V7 Flyway 迁移、统一 Web 规范和 local 验收接口。旧日期的 HTTP 验证不能代替当前工作树验收。
+- 原 9 个测试的最近全套执行为 8 failures + 1 error：WebCheck 切片未加载正式安全链；contextLoads 使用默认本机数据库且连接失败。新增确认专项测试独立验证，具体结果见本单元记录，不能据此称全套测试通过。
+- 工作树已有登录、角色权限、组织资源、就诊人、排班发布和预约创建代码；Redis/RabbitMQ/Outbox 尚未实现，当前多数业务代码仍未提交 Git。
 - 本机 Git 2.51.0、Maven 3.9.16 和 Temurin JDK 25.0.3 可用。
 - 项目编译目标、Maven 运行时和应用运行时均已统一为 Java 25。
-- 当前没有 Docker；W1 只记录依赖，最迟在进入 Testcontainers 前完成环境准备。
+- 2026-09-17 核对：MySQL 8.4 二进制可用但常规实例未运行；Docker CLI 存在但 daemon 未运行。确认专项使用隔离的临时 MySQL 进程，测试后清理，不依赖业务库。
 
-## 6. 八周课程总目录
+## 6. 2026-09-07 重排后的交付总目录
 
-| 周次 | 日期 | 项目章节 | 核心知识 | 周末交付物 |
-|---|---|---|---|---|
-| W1 | 08-30 至 09-05 | M0 设计 + M1 骨架 | 对象职责、HTTP、Git、Maven、IOC、MVC、异常、Flyway | 范围冻结，设计一致，应用启动，空库迁移和基础测试通过 |
-| W2 | 09-06 至 09-12 | M2 认证与数据权限 | Spring Security、BCrypt、JWT、RBAC、401/403、所有权校验 | 登录、账号状态和越权测试通过 |
-| W3 | 09-13 至 09-19 | M3 排班与号源 | Java 时间、区间重叠、事务、行锁、索引、状态机 | 排班冲突、发布和 Slot 生成测试通过 |
-| W4 | 09-20 至 09-26 | M4 MySQL 预约 | 幂等、条件更新、唯一约束、CAS、MVCC、事务回滚 | 创建、确认、取消和状态历史验收 |
-| W5 | 09-27 至 10-03 | M5 并发与 SQL | 线程池、竞态、锁、死锁、B+ 树、`EXPLAIN` | 500 抢 50 与 10 万数据优化证据 |
-| W6 | 10-04 至 10-10 | M6 Redis 查询缓存 | Cache Aside、TTL、穿透、雪崩、写后失效、降级 | 热点号源缓存与故障测试 |
-| W7 | 10-11 至 10-17 | M7 RabbitMQ 可靠超时 | Confirm、Ack、重试、DLX、幂等、Outbox | 重复消息和中断恢复测试 |
-| W8 | 10-18 至 10-24 | M8 部署与面试 | Docker、Linux、Actuator、日志、CI、项目口述 | 一键启动、证据包、README、简历和演示 |
+| 阶段 | 日期 | Java/MedFlow 主任务 | 截止证据 |
+|---|---|---|---|
+| 已完成基础 | 08-30 至 09-06 | M0 设计、M1 骨架与统一 Web 规范 | 设计产物、可运行骨架、HTTP/MockMvc 既有证据；未完成项继续挂账 |
+| 过渡闸门 | 09-07 至 09-09 | Security 最小完整闭环：用户加载、登录/JWT、统一 401/403、RBAC、对象权限 | 正反登录、伪造/过期 Token、禁用账号和越权；不再深挖 Filter 源码 |
+| S1 | 09-10 至 09-14 | 最小科室/医生/诊室、排班与 Slot，处理时间重叠、发布事务和必要索引 | 重叠边界、并发冲突、整体回滚和初版 `EXPLAIN` |
+| S2 | 09-15 至 09-20 | MySQL 预约正确性：条件扣减、幂等键、唯一约束、状态 CAS、取消/超时竞争 | 回滚、同键重试、重复取消和竞争终态证据 |
+| S3 | 09-21 至 09-27 | 500 抢 50、死锁复现/规避、10 万数据 SQL 优化，形成简历 V1 | 成功数严格等于容量、死锁记录、索引前后计划/耗时、三条项目故事 |
+| S4 | 09-28 至 10-04 | Redis 热点号源查询缓存 | 命中/失效/并发回源和 Redis 故障降级证据 |
+| S5 | 10-05 至 10-11 | RabbitMQ 超时关闭 + Outbox | 重复消息一次效果、Broker/消费者中断恢复和积压处理说明 |
+| S6 | 10-12 至 10-18 | Docker、Actuator、日志/CI、基础 JVM/SQL 排障、README 与模拟面试 | 空环境启动、故障定位链、五个项目故事和可核验数字 |
 
-如果某周没有通过验收，顺延当前周，不通过删测试或故障验证来赶日期。
+从现在开始投递和模拟面试；09-27 是证据 V1 截止，不是开始投递的日期。某阶段未验收时保留缺口，但不通过虚构结果、删掉失败验证或无限延后面试准备来赶日期。完整任务和来源见 `JAVA_BACKEND_AGENT_RESEARCH_2026.md`。
 
 ## 7. 校招知识学习地图
+
+### 7.0 基于真实面经的执行优先级
+
+这里的 P0/P1/P2 是“求职学习优先级”，不是 `MEDFLOW_REQUIREMENTS.md` 中的“产品交付范围”。
+
+| 优先级 | 内容 | 执行规则 |
+|---|---|---|
+| P0 | 项目/实习深挖、MySQL 索引与 SQL、事务/MVCC/锁、Java 集合与并发、Redis 核心、Spring 主干、算法/SQL 手写 | 每天推进；必须绑定代码/SQL、失败证据和口述 |
+| P1 | RabbitMQ、JVM/排障、网络/Linux、工程化和常见系统场景 | 紧跟 P0；写进简历或本周项目使用时立即升为 P0 |
+| P2 | Security/AQS/框架源码逐行、DDD 全套、微服务治理、分布式协议、MQ 内核、Kubernetes | 只建机制图和检索入口；被简历或目标 JD 触发时再升级 |
+
+八股不能等项目做完再补，项目也不能退化成“背题演示器”。每天用当前业务场景串起定义、机制、取舍、故障和验证。
 
 ### 7.1 Java
 
@@ -144,10 +166,10 @@ Git 提交 SHA
 
 ### 7.3 安全
 
-- FilterChain、Authentication、SecurityContext。
+- FilterChain、Authentication、SecurityContext 的请求主干；不逐个背内置 Filter 源码。
 - BCrypt、JWT 签名和失效。
 - 认证与授权、401 与 403。
-- RBAC 与对象级数据权限。
+- RBAC 与对象级数据权限；以伪造/过期 Token、禁用账号和越权负例收口。
 
 ### 7.4 MySQL
 
@@ -179,6 +201,13 @@ Git 提交 SHA
 ### 7.8 独立算法线
 
 每天 20—30 分钟，按数组/哈希、链表、栈队列、树、二分、堆、图和动态规划推进。算法进度不通过给 MedFlow 增加业务功能来替代。
+
+### 7.9 Agent/AI 应用并行线
+
+- 当前主攻“应用/平台工程型”：LLM API、RAG、Tool Calling、确定性 Workflow、Eval/Trace 和安全边界。
+- A0—A3 独立推进，初版只读；模型不传可信用户 ID、不直接访问数据库、不自主提交预约。
+- Spring AI 选一套深入；MCP 做一次 client/server；多 Agent、模型微调和训练推理框架按 JD 再学。
+- 详细岗位样本、任务和验收见 `JAVA_BACKEND_AGENT_RESEARCH_2026.md`。
 
 ## 8. W1 逐日课表
 
@@ -234,12 +263,14 @@ Git 提交 SHA
 ## 10. 每天固定节奏
 
 ```text
-50 分钟：当天完整知识课程
-120 分钟：项目手打或设计
-30 分钟：自动化测试或设计验收
-20 分钟：当天八股脱稿口述
-20 分钟：算法练习
+110 分钟：MedFlow 当前场景——设计、核心实现、失败验证
+45 分钟：当天关联八股——定义、机制、取舍、项目追问
+30 分钟：算法或 SQL 手写——计时、复杂度、边界
+45 分钟：Agent 并行线——一个可运行增量或一个评测增量
+10 分钟：证据日志——结果、失败、数字、明日唯一动作
 ```
+
+每周额外交付：一段业务闭环、至少一个边界和一个失败/并发用例、一份可复查证据、一张方案比较表、一次 8 分钟项目拷打、一次 45 分钟综合模拟，以及一次“未验证能力不写简历”的核查。
 
 每次课程开头固定展示：
 
@@ -470,8 +501,57 @@ Git 提交 SHA
 - 2026-09-06 晚助手代跑 `-DskipTests compile`：BUILD SUCCESS，springdoc 2.8.17 依赖解析正常，该项验收通过。检测到 8080 存在旧进程（启动于 01:50，早于 02:46 的配置修改），其 /v3/api-docs 与 swagger-ui 返回 200 属旧配置行为，不作为新配置证据；在旧进程上复查 6 项 HTTP 与 Day 6 记录一致，Day 6 基线无回归。
 - 新配置证据待学习者重启取得：local 启动后经 Swagger UI 页面 Try it out 调用接口；非 local 启动确认 /v3/api-docs、/swagger-ui/index.html、/dev/web/* 均 404。
 
+### 2026-09-06：Day 7 验收挂账，进入 Day 8 M2 认证
+
+- 学习者表示已了解 Profile/OpenAPI 内容，要求暂缓重启验证与口述，继续推进课程。Day 7 三项挂账，不标记通过：① 新配置的 Swagger UI 双向验证（local 可用、非 local 全 404）；② Day 6+7 统一规范 Git 提交；③ 分层职责口述。
+- 已完成：编译 BUILD SUCCESS（springdoc 2.8.17 解析正常）；旧进程 6 项 HTTP 复查与 Day 6 基线一致。
+- 按 2026-09-03 进入 Day 6 的先例，验证债不阻塞开课。Day 8 主题：Spring Security 全貌与请求链路（FilterChain 位置、认证/授权、SecurityContext、能力边界），当日任务为设计与口述，暂不手打。
+- Day 8 开课后学习者纠正教学方式：应先完整讲授知识点并给出代码示例，边写边讲、随讲随问，最后统一作答；"先布置题目、后教学"的顺序不再使用。已同步更新学习方式记录。
+- 讲授纠错：第一版链路图与文字互相矛盾，学习者当场抓出。2026-09-08 重新核对实际源码：`RequestTraceFilter` 已显式标注 `@Order(Ordered.HIGHEST_PRECEDENCE)`，因此当前设计目标是 Trace Filter 先进入、Security FilterChain（默认注册 order=-100）后执行，使 Security 产生的 401/403 也能获得 Trace ID；最终顺序仍以 M2 的实际响应头和日志实验为准。
+
+### 2026-09-07：Maven 镜像修复，Day 8 继续讲授
+
+- 学习者自行将 spring-boot-starter-security 加入 pom.xml（原计划 Day 9 添加），构建报中央仓库连接超时。诊断为无 settings.xml 直连 repo.maven.apache.org 超时；经学习者要求由助手创建 `~/.m2/settings.xml` 配置阿里云镜像（mirrorOf 仅 central）。
+- 验证：`-DskipTests compile` BUILD SUCCESS，日志显示全部经 aliyun-central 下载；spring-boot-starter-security 3.5.16 与 spring-security-config 6.5.11 已入本地仓库。环境配置类改动由助手完成，项目源码仍由学习者手打。
+- Day 8 继续讲授：lambda DSL 读法、SessionCreationPolicy 四档、STATELESS 与 JWT 的关系、CSRF 攻击原理与关闭条件。附带现象预告：security 依赖已进 classpath，下次启动全接口默认上锁。
+- Day 8 收问：❻ 通过（STATELESS 下每次请求由 Authorization 头 Bearer Token 重新解析身份）。❼ 结论正确并补讲机制：无 Token 失败的根因是浏览器不自动携带该头且同源策略限制；偷到 Token 则属凭证失窃威胁而非 CSRF，防线是 HTTPS 与短有效期。❶~❺ 未作答，转入口述债，不阻塞推进。
+- 助手经 jshell 实测 spring-security-crypto 6.5.11 的 BCryptPasswordEncoder：同一密码两次 encode 哈希不同（随机盐）、密文 60 字符、matches 对错分明，作为 Day 9 课堂证据；并生成种子账号 admin/Admin@123 的真实哈希供 V2 迁移使用。
+- Day 9 手打任务发布：①规范提交 Day 6+7（清 M1 提交挂账）；②V2__create_user_table.sql 建 `sys_user` 表并插入 admin 种子；③SecurityConfig（规则表 + STATELESS + 关 CSRF + PasswordEncoder Bean）；④DbUserDetailsService（通过仓库查询 `sys_user`）；⑤启动后观察并记录无凭证访问的拒绝形态，供 Day 10 定制 401/403 JSON 入口点时对比。
+- 应学习者要求，Day 9 任务④升级为真实业务分层风格并以 V2.1 需求基线校准：新增 `identity` 模块（UserAccount record + UserRepository，SQL 只出现在仓库层，返回 Optional）；DbUserDetailsService 与 SecurityConfig 归入 `identity.security`；auth DTO/Service/Controller 留待登录/JWT 阶段建立。
+
+### 2026-09-07：真实面经调研完成，Java 后端 × Agent 路线重排
+
+- 新增 `JAVA_BACKEND_AGENT_RESEARCH_2026.md`，纳入 24 份 2025-03 至 2026-09 的一手面经、1 份声称共 45 场但按 43 条记录统计且未解释差额的个人复盘，以及 10 个定向 Agent 岗位；明确排除培训题库、无原始轮次的汇总和无分母“命中率”。
+- 三张截图已反查到对应原帖：字节全栈研发一面、快手 Java 后端一面、字节 AI 全栈研发二面。截图用于核验真实题序，不外推为全行业概率。
+- 路线结论：传统八股没有过时，但必须转为“项目/实习开场 + Java/MySQL/Redis/并发基础 + 方案/失败/规模追问”；Security 以可运行闭环收口，MySQL/并发/SQL 证据提前到 09-27 前。
+- 新增 Agent 隔离并行线，定位为 Java Agent 应用/平台工程，不转向模型训练；每天 45 分钟，先做 API、RAG、Tool、Workflow、Eval/Trace 与安全。
+- 本次只调整文档，不修改业务源码；现有 `pom.xml`、`SecurityConfig` 和其他工作区改动均保留原状。调研文档及本次路线修改尚未 Git 固化，因此看板状态为 `VERIFYING`。
+
+### 2026-09-08：按 V2.1 基线复核，继续 Day 9 身份加载链
+
+- 已按修改时间检查最新三份核心文档及当前源码。路线以 `MEDFLOW_REQUIREMENTS.md` 的稳定产品基线、`PROJECT_PROGRESS.md` 的动态进度和 `JAVA_BACKEND_AGENT_RESEARCH_2026.md` 的优先级依据分工解释。
+- 纠正文档遗留漂移：身份表统一使用需求基线中的 `sys_user`，认证接口统一使用 `/api/v1/auth/login`，身份相关源码归入 `identity` 模块；不再沿用旧写法 `med_user`、`/api/auth/login` 或顶层 user 模块。
+- 当前源码仍只有 Security 依赖和初版 `SecurityConfig`；V2 迁移、UserAccount、UserRepository、DbUserDetailsService 尚未创建。本课进入完整讲授和学习者手打阶段，未记录编译或运行通过。
+
+### 2026-09-08：身份加载链完成，进入登录/JWT 接链
+
+- 工作区已出现 `sys_user` V2 迁移、UserRole/UserStatus、UserAccount、UserRepository、DbUserDetailsService、JWT 依赖和初版 JwtService；尚未出现登录 DTO/VO、AuthService、AuthController。
+- 助手只读验证 `mvnw -DskipTests compile`：15 个主源码文件，Java 25，BUILD SUCCESS。该结果不代表应用启动或 Security 行为验收。
+- 通过 MySQL JDBC 只读核对：Flyway V1/V2 均 success；`sys_user` 表存在；admin 为 ADMIN/ENABLED、token_version=0、BCrypt 长度 60。3306 正在监听，8080 未监听。
+- 当前结构缺口：SecurityConfig 文件物理路径仍在 `com/qqlin/medflow/config`，其 package 已声明 `com.qqlin.medflow.identity.security`，需要移动以保持目录与包一致。
+- 当前运行缺口：JwtService 依赖 SecretKey，但 SecurityConfig 尚无 SecretKey/JwtDecoder/Resource Server/AuthenticationManager 接链；JWT 配置当前只位于 local YAML 文档中。下一步先形成登录签发与 Bearer 验证闭环，再补统一 401/403、账号/Token 失效和权限负例。
+- 依赖顺序校正：当前没有患者、医生、排班或预约真实接口，不提前搭建伪对象权限接口。当前 Security 闸门先验收认证基础设施与角色级 RBAC；医生只能访问自己排班在 S1 验收，患者只能访问本人就诊人与预约在 S2 验收，M2 在滚动证据齐备前保持 IN_PROGRESS。
+
+### 2026-09-08：登录/JWT 与统一安全响应基础闭环完成
+
+- 助手按学习者明确授权，直接新增 `SecurityErrorResponseWriter`、`RestAuthenticationEntryPoint`、`RestAccessDeniedHandler`，并将它们接入 `SecurityConfig` 的 `exceptionHandling` 和 OAuth2 Resource Server；`JwtDecoder` 同时显式接入 Resource Server。
+- `mvnw -DskipTests compile`：22 个主源码文件、Java 25、`BUILD SUCCESS`；`git diff --check` 无空白错误。local 应用启动成功，Flyway 校验 V1/V2 且数据库无需迁移。
+- 最小 HTTP 证据：`admin/Admin@123` 登录成功；错误密码为 401；无 Token 与篡改 Token 均为 `401 {"code":"UNAUTHORIZED"...}`；合法 ADMIN Token 访问 `/api/v1/doctor/**` 为 `403 {"code":"FORBIDDEN"...}`；响应均保留 Trace ID，401 带 `WWW-Authenticate: Bearer`。
+- 不把未做的内容写成完成：未等待真实过期 Token、未实现 tokenVersion 对每次 Bearer 请求的失效检查、未验证禁用账号持旧 Token 的拒绝；对象级数据权限必须等 S1/S2 真实资源出现后验收。
+- 按范围冻结规则停止深挖内置 Filter 源码。下一学习单元进入 S1：最小组织数据、排班时间冲突、发布与 Slot 同事务、必要索引。
+
 ## 14. 当前唯一下一步
 
-Day 6 的统一响应、异常和参数校验已通过 7 项实际 HTTP 验证及 7 个 MockMvc 测试；Day 5 知识口述作为并行复习债保留。
+现有代码已经越过 S1 开始阶段。确认预约本单元的代码与验证记录独立维护，未完成的全套测试、医生对象权限、tokenVersion 失效和 Git 固化仍保留。
 
-当前唯一下一步：接入 springdoc OpenAPI 与 Swagger UI，仅在 local Profile 开启文档，通过页面手工调用现有接口。测试代码专题后置；实际日志与响应头 ID 一致性仍待核对，M1 不因教学推进自动标记 ACCEPTED。
+**当前唯一下一步：** 确认预约专项完成后，实现取消与超时关闭；两者必须在同一事务中执行状态 CAS、仅获胜者归还一次号源、追加状态历史。先完成 MySQL 业务操作与竞争验证，再接入 MQ。号源/预约查询随后补齐患者演示闭环。

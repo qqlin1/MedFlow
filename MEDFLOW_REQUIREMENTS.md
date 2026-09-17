@@ -1,6 +1,6 @@
 # MedFlow 门诊资源调度与可靠预约系统
 
-## 校招主项目需求与验收基线 V2.0
+## 校招主项目需求与验收基线 V2.1
 
 | 项目项 | 当前定位 |
 |---|---|
@@ -11,10 +11,12 @@
 | 核心角色 | 患者 `PATIENT`、医生 `DOCTOR`、管理员 `ADMIN` |
 | 架构策略 | 模块化单体；先用 MySQL 保证正确，再引入一个 Redis 场景和一个 RabbitMQ 场景 |
 | 核心技术主线 | Spring Security、MySQL 事务与锁、幂等、状态机、Redis Cache Aside、RabbitMQ + Outbox、测试与部署 |
-| 计划周期 | 8 周完成可投递版本，之后最多选择一个扩展 |
+| 计划周期 | 先形成 MySQL 正确性、并发与 SQL 优化的面试证据 V1，再按依赖补 Redis、MQ 与部署；动态日期见进度文档 |
 | 数据边界 | 只使用虚构或脱敏数据，不存储真实患者隐私和真实诊疗信息 |
 
-> 本文档是当前唯一需求基线。V1.0 中排队、叫号、接诊、随访、AI、FHIR 等大范围设计已退出 8 周主线。
+> 本文档是稳定的产品与验收需求基线。动态课程、完成状态和唯一下一步只在 [`.codex/PROJECT_PROGRESS.md`](.codex/PROJECT_PROGRESS.md) 维护；调研依据、优先级和 Agent 并行线见 [`.codex/JAVA_BACKEND_AGENT_RESEARCH_2026.md`](.codex/JAVA_BACKEND_AGENT_RESEARCH_2026.md)。
+>
+> V1.0 中排队、叫号、接诊、随访、AI 诊断、FHIR 等大范围设计仍不进入 Java 主项目；隔离的“预约规则与号源查询助手”是并行学习扩展，不改变本需求基线的核心事务与业务模型。
 
 ---
 
@@ -111,7 +113,9 @@ P2 只能选择一个。选择条件是 P0、P1 已全部验收并且不影响�
 - 处方、药品、缴费、医保、电子病历、LIS、PACS。
 - 周期性随访、量表、完整通知矩阵和运营大屏。
 - 多医院、多租户和复杂业务字典。
-- AI/RAG、FHIR、MinIO、Qdrant、Spring Modulith。
+- AI 诊断、用药/科室推荐、真实病历问答，以及让模型直接写库或自主提交预约。
+- Agent/RAG 不进入 Java 主项目 P0/P1；隔离助手按独立 A0—A3 路线推进，初版只读，只使用虚构数据和受控业务 API。
+- FHIR、MinIO、Qdrant、Spring Modulith。
 - 微服务、注册中心、网关、分库分表、Kubernetes。
 - 完整 Vue 前端；后端阶段使用 OpenAPI 和演示脚本。
 - 为了写进简历而同时堆 Redis、Kafka、RabbitMQ 和多个框架。
@@ -278,6 +282,8 @@ PENDING_CONFIRMATION
   -> 写入状态历史
 ```
 
+重复确认时，若当前状态仍为 `BOOKED`，返回 200 和当前确认结果，不再次修改容量或追加确认历史；已取消或已过期则返回 409。不属于当前账号与预约不存在统一返回 404。确认不再扣减号源，因为创建预约时已经占用容量。
+
 ### 5.4 主动取消
 
 ```text
@@ -351,7 +357,7 @@ V1 不继续扩展 `CHECKED_IN`、`IN_PROGRESS`、`COMPLETED` 等接诊状态。
 - 密码使用 BCrypt。
 - 登录成功返回 JWT Access Token。
 - 账号支持 `ENABLED`、`DISABLED`、`LOCKED`。
-- 退出或禁用后的令牌失效方案在 M1 设计阶段确定并测试。
+- 退出或禁用后的令牌失效方案在 Security 阶段确定，并随认证闭环完成验证。
 - 未登录返回 401，无权限返回 403。
 - 日志不得输出密码、Token 和完整手机号。
 
@@ -583,7 +589,7 @@ Outbox 不是“多建一张表”就完成，必须具有扫描投递、失败�
 |---|---|
 | IOC 与分层 | 模块边界、依赖注入、Controller/Service/Mapper 职责 |
 | Spring MVC | 参数绑定、Validation、异常转换、HTTP 状态码 |
-| Spring Security | FilterChain、SecurityContext、JWT、RBAC、数据权限 |
+| Spring Security | 请求主干、SecurityContext、JWT、401/403、RBAC、对象数据权限和越权负例；不以逐个 Filter 源码为交付物 |
 | Spring 事务 | 预约扣减与创建、取消归还、Outbox 同事务 |
 | AOP 代理 | `@Transactional` 生效与失效场景 |
 | MySQL 索引 | 预约查询、排班冲突、Outbox 扫描和 `EXPLAIN` |
@@ -619,20 +625,22 @@ Outbox 不是“多建一张表”就完成，必须具有扫描投递、失败�
 
 ---
 
-## 13. 八周交付路线
+## 13. 交付依赖顺序（稳定基线）
 
-| 周次 | 项目主线 | 核心知识 | 周末可验证交付物 |
+本节只规定先后依赖和验收物，不维护日期。当前日期、挂账和唯一动作以 `PROJECT_PROGRESS.md` 为准。
+
+| 阶段 | 项目主线 | 核心知识 | 可验证交付物 |
 |---|---|---|---|
-| W1 | 范围冻结、设计、骨架、Flyway、Web 规范 | Java 对象职责、Maven、IOC、MVC、异常、HTTP | 应用启动，空库迁移，统一异常和首批测试通过 |
-| W2 | Spring Security、JWT、账号状态、患者所有权 | FilterChain、BCrypt、401/403、RBAC、数据权限 | 登录和越权测试通过 |
-| W3 | 科室/医生/诊室、排班、冲突、发布与 Slot | Java 时间、区间冲突、行锁、索引、状态机 | 并发排班冲突和发布原子性测试通过 |
-| W4 | 预约创建、确认、取消、幂等、状态历史 | 事务代理、条件更新、唯一约束、MVCC、CAS | MySQL 版预约规则和回滚测试通过 |
-| W5 | 并发一致性与 SQL 优化 | 线程池、竞态、锁与死锁、B+ 树、`EXPLAIN` | 500 抢 50 和 10 万数据优化报告 |
-| W6 | Redis 热点号源查询缓存 | Cache Aside、TTL、穿透、雪崩、失效和降级 | 缓存命中、失效、故障降级测试 |
-| W7 | RabbitMQ 超时关闭与 Outbox | Exchange、Confirm、Ack、重试、DLX、消费幂等 | 重复消息和故障恢复测试通过 |
-| W8 | Docker、Actuator、CI、证据包和面试口述 | Linux、容器网络、日志、JVM 排障基础 | 一键启动、固定演示、README、简历与题库 |
+| B0 | 范围冻结、设计、骨架、Flyway、Web 规范 | Java 对象职责、Maven、IOC、MVC、异常、HTTP | 应用启动，空库迁移，统一异常和首批测试 |
+| B1 | Security 最小完整闭环 | BCrypt、用户加载、JWT、401/403、RBAC、对象权限 | 正反登录、Token、禁用账号和越权负例；完成后停止源码深挖 |
+| B2 | 科室/医生/诊室、排班、冲突、发布与 Slot | Java 时间、区间冲突、事务、锁、索引、状态机 | 边界、并发排班冲突、发布原子性和初版 `EXPLAIN` |
+| B3 | 预约创建、确认、取消、幂等、状态历史 | 事务代理、条件更新、唯一约束、MVCC、CAS | 回滚、同键重试、重复取消和取消/超时竞争 |
+| B4 | 并发一致性与 SQL 优化，形成面试证据 V1 | 线程池、竞态、锁/死锁、B+ 树、慢 SQL、`EXPLAIN` | 500 抢 50、死锁实验和 10 万数据索引前后报告 |
+| B5 | Redis 热点号源查询缓存 | Cache Aside、TTL、穿透/击穿/雪崩、失效和降级 | 缓存命中、并发回源、失效与 Redis 故障降级 |
+| B6 | RabbitMQ 超时关闭与 Outbox | Exchange、Confirm、Ack、重试、DLX、消费幂等 | 重复消息一次效果、Broker/消费者中断与恢复 |
+| B7 | Docker、Actuator、CI、证据包和面试口述 | Linux、容器网络、日志、JVM/SQL 排障基础 | 一键启动、故障定位、固定演示、README 和五个项目故事 |
 
-算法和通用八股每天保持 30—40 分钟独立学习，不用继续给项目增加业务模块来“承载”所有知识点。
+算法、SQL 手写和关联八股每天独立训练；Agent A0—A3 并行但隔离，不通过给 MedFlow 增加无关业务模块来“承载”所有知识点。
 
 ---
 
@@ -692,24 +700,18 @@ Outbox 不是“多建一张表”就完成，必须具有扫描投递、失败�
 2. 幂等和取消只归还一次没有测试，不引入 RabbitMQ。
 3. Outbox 没有 Relay、重试和恢复测试，不能写“可靠消息”。
 4. Redis 只做查询缓存，不在主线增加 Lua 库存双写。
-5. P0/P1 未全部验收，不增加排队、随访、AI、FHIR 或微服务。
+5. P0/P1 未全部验收，不向 Java 主项目增加排队、随访、AI 诊断、FHIR 或微服务；Agent 实验只按独立路线运行，模型和工具不得直接写数据库或进入核心事务。后期写操作只能生成草稿，经用户明确确认后调用已有幂等业务接口，且不能阻塞 B2—B4。
 6. 每个亮点必须包含“问题、比较、失败处理、验证结果”。
 7. 没有运行证据的内容不能写入简历。
 8. 做不完时优先砍 P2，而不是削弱测试、文档和故障验证。
 
 ---
 
-## 17. 当前下一步
+## 17. 动态执行入口
 
-M0 需求与设计已于 2026-09-02 通过验收，当前处于 M1 项目骨架与统一规范。
+本需求文档不再复制“当前课程、测试数量、完成状态或下一步”，避免它们与实际源码和课程记录漂移。
 
-Day 5 工程初始化已完成：
+- 当前看板、历史证据、测试事实和唯一下一步：[`PROJECT_PROGRESS.md`](.codex/PROJECT_PROGRESS.md)
+- 2026 面经来源、Java P0/P1/P2、六周冲刺、AI 生成边界及 Agent A0—A3：[`JAVA_BACKEND_AGENT_RESEARCH_2026.md`](.codex/JAVA_BACKEND_AGENT_RESEARCH_2026.md)
 
-1. 已初始化 `main` 分支 Git 仓库。
-2. 项目编译和运行工具链已统一为 Java 25。
-3. 已建立 Maven `pom.xml` 和 Spring Boot 3.5.16 最小项目骨架。
-4. Maven Wrapper 已固定为 Maven 3.9.16。
-5. 上下文测试、可执行 JAR 打包和 HTTP 启动验收已通过。
-6. 未提前引入数据库、MyBatis-Plus、Redis、RabbitMQ 或业务模块。
-
-当前唯一下一步：完成 Day 5 的 Maven 生命周期、IOC 与自动配置口述验收；随后进入 Day 6 Flyway 与统一 Web 规范。
+任何“已实现/已通过/可写进简历”的判断，仍以当前源码、Git 状态、测试报告、手工结果和可复现实验为准。
