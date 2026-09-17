@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.scheduling.mapper.SlotMapper">
+
+    <resultMap id="SlotBookingSnapshotResultMap"
+               type="com.qqlin.medflow.scheduling.domain.SlotBookingSnapshot">
+        <constructor>
+            <idArg column="slot_id" javaType="_long"/>
+            <arg column="booking_deadline"
+                 javaType="java.time.LocalDateTime"/>
+            <arg column="remaining_capacity" javaType="_int"/>
+            <arg column="slot_status"
+                 javaType="com.qqlin.medflow.scheduling.domain.SlotStatus"/>
+            <arg column="schedule_status"
+                 javaType="com.qqlin.medflow.scheduling.domain.ScheduleStatus"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertSlots">
+        INSERT INTO med_slot (
+            schedule_id,
+            work_date,
+            start_time,
+            end_time,
+            booking_deadline,
+            total_capacity,
+            remaining_capacity,
+            status
+        )
+        VALUES
+        <foreach collection="slots" item="slot" separator=",">
+            (
+                #{slot.scheduleId},
+                #{slot.workDate,jdbcType=DATE},
+                #{slot.startTime,jdbcType=TIME},
+                #{slot.endTime,jdbcType=TIME},
+                #{slot.bookingDeadline,jdbcType=TIMESTAMP},
+                #{slot.totalCapacity},
+                #{slot.remainingCapacity},
+                #{slot.status,jdbcType=VARCHAR}
+            )
+        </foreach>
+    </insert>
+
+    <select id="findBookingSnapshot"
+            resultMap="SlotBookingSnapshotResultMap">
+        SELECT
+            slot.id AS slot_id,
+            slot.booking_deadline,
+            slot.remaining_capacity,
+            slot.status AS slot_status,
+            schedule.status AS schedule_status
+        FROM med_slot slot
+        INNER JOIN med_schedule schedule
+            ON schedule.id = slot.schedule_id
+        WHERE slot.id = #{slotId}
+    </select>
+
+    <update id="decreaseRemainingCapacityIfBookable">
+        UPDATE med_slot slot
+        INNER JOIN med_schedule schedule
+            ON schedule.id = slot.schedule_id
+        SET slot.remaining_capacity = slot.remaining_capacity - 1
+        WHERE slot.id = #{slotId}
+          AND slot.remaining_capacity &gt; 0
+          AND slot.status = #{openStatus}
+          AND slot.booking_deadline &gt; #{now,jdbcType=TIMESTAMP}
+          AND schedule.status = #{publishedStatus}
+    </update>
+</mapper>

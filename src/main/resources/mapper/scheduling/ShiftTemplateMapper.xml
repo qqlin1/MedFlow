@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.scheduling.mapper.ShiftTemplateMapper">
+
+    <resultMap id="ShiftTemplateResultMap"
+               type="com.qqlin.medflow.scheduling.domain.ShiftTemplate">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="start_time" javaType="java.time.LocalTime"/>
+            <arg column="end_time" javaType="java.time.LocalTime"/>
+            <arg column="slot_duration_minutes" javaType="_int"/>
+            <arg column="capacity_per_slot" javaType="_int"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.scheduling.domain.ShiftTemplateStatus"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findById" resultMap="ShiftTemplateResultMap">
+        SELECT
+            id,
+            code,
+            name,
+            start_time,
+            end_time,
+            slot_duration_minutes,
+            capacity_per_slot,
+            status
+        FROM med_shift_template
+        WHERE id = #{shiftTemplateId}
+    </select>
+
+    <select id="findEnabled" resultMap="ShiftTemplateResultMap">
+        SELECT
+            id,
+            code,
+            name,
+            start_time,
+            end_time,
+            slot_duration_minutes,
+            capacity_per_slot,
+            status
+        FROM med_shift_template
+        WHERE status = 'ENABLED'
+        ORDER BY start_time, id
+    </select>
+</mapper>

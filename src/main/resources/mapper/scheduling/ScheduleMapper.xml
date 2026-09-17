@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.scheduling.mapper.ScheduleMapper">
+
+    <resultMap id="ScheduleForPublishResultMap"
+               type="com.qqlin.medflow.scheduling.domain.ScheduleForPublish">
+        <constructor>
+            <idArg column="id" javaType="_long"/>
+            <arg column="work_date" javaType="java.time.LocalDate"/>
+            <arg column="start_time" javaType="java.time.LocalTime"/>
+            <arg column="end_time" javaType="java.time.LocalTime"/>
+            <arg column="slot_duration_minutes" javaType="_int"/>
+            <arg column="capacity_per_slot" javaType="_int"/>
+            <arg column="status"
+                 javaType="com.qqlin.medflow.scheduling.domain.ScheduleStatus"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findDoctorOverlap" resultType="java.lang.Integer">
+        SELECT 1
+        FROM med_schedule
+        WHERE doctor_id = #{doctorId}
+          AND work_date = #{workDate,jdbcType=DATE}
+          AND active_flag = 1
+          AND start_time &lt; #{endTime,jdbcType=TIME}
+          AND end_time &gt; #{startTime,jdbcType=TIME}
+        LIMIT 1
+    </select>
+
+    <select id="findClinicRoomOverlap" resultType="java.lang.Integer">
+        SELECT 1
+        FROM med_schedule
+        WHERE clinic_room_id = #{clinicRoomId}
+          AND work_date = #{workDate,jdbcType=DATE}
+          AND active_flag = 1
+          AND start_time &lt; #{endTime,jdbcType=TIME}
+          AND end_time &gt; #{startTime,jdbcType=TIME}
+        LIMIT 1
+    </select>
+
+    <insert id="insertDraft"
+            parameterType="com.qqlin.medflow.scheduling.mapper.ScheduleDraftInsertParam"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO med_schedule (
+            doctor_id,
+            clinic_room_id,
+            shift_template_id,
+            work_date,
+            start_time,
+            end_time,
+            slot_duration_minutes,
+            capacity_per_slot,
+            status
+        )
+        VALUES (
+            #{doctorId},
+            #{clinicRoomId},
+            #{shiftTemplateId},
+            #{workDate,jdbcType=DATE},
+            #{startTime,jdbcType=TIME},
+            #{endTime,jdbcType=TIME},
+            #{slotDurationMinutes},
+            #{capacityPerSlot},
+            #{status,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <select id="lockScheduleForPublish"
+            resultMap="ScheduleForPublishResultMap"
+            useCache="false"
+            flushCache="true">
+        SELECT
+            id,
+            work_date,
+            start_time,
+            end_time,
+            slot_duration_minutes,
+            capacity_per_slot,
+            status
+        FROM med_schedule
+        WHERE id = #{scheduleId}
+        FOR UPDATE
+    </select>
+
+    <update id="markPublishedIfDraft">
+        UPDATE med_schedule
+        SET status = #{publishedStatus}
+        WHERE id = #{scheduleId}
+          AND status = #{draftStatus}
+    </update>
+</mapper>
