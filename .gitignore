@@ -26,6 +26,13 @@ logs/
 /.workbuddy-ai/
 /tools/redis/
 
+### Screenshots and runtime evidence stay local ###
+/docs/images/
+/docs/evidence/
+/docs/audit/
+/docs/TWO_DAY_VALIDATION.json
+
 ### Operating system ###
 .DS_Store
 Thumbs.db
+
