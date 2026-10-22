@@ -6,6 +6,7 @@ import com.qqlin.medflow.appointment.service.AppointmentService;
 import com.qqlin.medflow.identity.domain.UserAccount;
 import com.qqlin.medflow.identity.domain.UserRole;
 import com.qqlin.medflow.identity.domain.UserStatus;
+import com.qqlin.medflow.identity.repository.UserRepository;
 import com.qqlin.medflow.identity.security.DbUserDetailsService;
 import com.qqlin.medflow.identity.security.JwtCurrentUserResolver;
 import com.qqlin.medflow.identity.security.JwtService;
@@ -26,6 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.verify;
@@ -75,6 +77,9 @@ class AppointmentControllerTest {
 
     @MockitoBean
     private DbUserDetailsService dbUserDetailsService;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @Test
     void confirmShouldReturnBookedAppointmentAndUseUserIdFromJwt()
@@ -263,6 +268,153 @@ class AppointmentControllerTest {
     }
 
     @Test
+    void cancelShouldReturnCancelledAppointmentAndUseUserIdFromJwt()
+            throws Exception {
+        Appointment cancelled = appointment(AppointmentStatus.CANCELLED);
+        when(appointmentService.cancel(
+                PATIENT_USER_ID,
+                APPOINTMENT_ID
+        )).thenReturn(cancelled);
+
+        mockMvc.perform(post(
+                        "/api/v1/appointments/{appointmentId}/cancel",
+                        APPOINTMENT_ID
+                )
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                patientBearerToken()
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.message").value("操作成功"))
+                .andExpect(jsonPath(
+                        "$.data.appointmentId"
+                ).value(APPOINTMENT_ID))
+                .andExpect(jsonPath(
+                        "$.data.status"
+                ).value("CANCELLED"));
+
+        verify(appointmentService).cancel(
+                PATIENT_USER_ID,
+                APPOINTMENT_ID
+        );
+    }
+
+    @Test
+    void cancelWithoutTokenShouldReturn401BeforeCallingService()
+            throws Exception {
+        mockMvc.perform(post(
+                        "/api/v1/appointments/{appointmentId}/cancel",
+                        APPOINTMENT_ID
+                ))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        verifyNoInteractions(appointmentService);
+    }
+
+    @Test
+    void cancelWithAdminTokenShouldReturn403BeforeCallingService()
+            throws Exception {
+        mockMvc.perform(post(
+                        "/api/v1/appointments/{appointmentId}/cancel",
+                        APPOINTMENT_ID
+                )
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                bearerToken(
+                                        ADMIN_USER_ID,
+                                        UserRole.ADMIN
+                                )
+                        ))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        verifyNoInteractions(appointmentService);
+    }
+
+    @Test
+    void cancelWithInvalidAppointmentIdShouldReturn400()
+            throws Exception {
+        mockMvc.perform(post(
+                        "/api/v1/appointments/{appointmentId}/cancel",
+                        0
+                )
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                patientBearerToken()
+                        ))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath(
+                        "$.code"
+                ).value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(appointmentService);
+    }
+
+    @Test
+    void cancelShouldTranslateBusinessNotFoundTo404()
+            throws Exception {
+        when(appointmentService.cancel(
+                PATIENT_USER_ID,
+                APPOINTMENT_ID
+        )).thenThrow(new BusinessException(
+                ErrorCode.APPOINTMENT_NOT_FOUND
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v1/appointments/{appointmentId}/cancel",
+                        APPOINTMENT_ID
+                )
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                patientBearerToken()
+                        ))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath(
+                        "$.code"
+                ).value("APPOINTMENT_NOT_FOUND"))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        verify(appointmentService).cancel(
+                PATIENT_USER_ID,
+                APPOINTMENT_ID
+        );
+    }
+
+    @Test
+    void cancelShouldTranslateBusinessConflictTo409()
+            throws Exception {
+        when(appointmentService.cancel(
+                PATIENT_USER_ID,
+                APPOINTMENT_ID
+        )).thenThrow(new BusinessException(
+                ErrorCode.APPOINTMENT_NOT_CANCELLABLE
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v1/appointments/{appointmentId}/cancel",
+                        APPOINTMENT_ID
+                )
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                patientBearerToken()
+                        ))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath(
+                        "$.code"
+                ).value("APPOINTMENT_NOT_CANCELLABLE"))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        verify(appointmentService).cancel(
+                PATIENT_USER_ID,
+                APPOINTMENT_ID
+        );
+    }
+
+    @Test
     void createWithoutIdempotencyKeyShouldReturn400BeforeCallingService()
             throws Exception {
         mockMvc.perform(post("/api/v1/appointments")
@@ -313,6 +465,7 @@ class AppointmentControllerTest {
                 0
         );
 
+        when(userRepository.findById(userId)).thenReturn(Optional.of(account));
         return "Bearer " + jwtService.issue(account);
     }
 

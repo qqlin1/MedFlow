@@ -30,4 +30,16 @@
         FROM sys_user
         WHERE username = #{username}
     </select>
+
+    <select id="findById" resultMap="UserAccountResultMap">
+        SELECT
+            id,
+            username,
+            password_hash,
+            role,
+            status,
+            token_version
+        FROM sys_user
+        WHERE id = #{id}
+    </select>
 </mapper>

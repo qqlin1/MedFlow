@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qqlin.medflow.billing.mapper.BillingMapper">
+    <sql id="rowColumns">id, encounter_id, status, total_amount, version</sql>
+    <sql id="summaryColumns">
+        rx.id,rx.encounter_id,e.appointment_id,p.name AS patient_name,d.name AS doctor_name,
+        dep.name AS department_name,rx.status,rx.total_amount,rx.version,rx.created_at,rx.issued_at
+    </sql>
+    <sql id="summaryJoins">
+        med_prescription rx JOIN med_encounter e ON e.id=rx.encounter_id
+        JOIN med_appointment a ON a.id=e.appointment_id JOIN med_patient p ON p.id=a.patient_id
+        JOIN med_doctor d ON d.id=e.doctor_id JOIN med_department dep ON dep.id=d.department_id
+    </sql>
+    <select id="findPrescriptionForEncounter" resultType="com.qqlin.medflow.billing.domain.PrescriptionRow">
+        SELECT <include refid="rowColumns"/> FROM med_prescription WHERE encounter_id=#{encounterId}
+    </select>
+    <select id="lockPrescriptionForEncounter" resultType="com.qqlin.medflow.billing.domain.PrescriptionRow" useCache="false" flushCache="true">
+        SELECT <include refid="rowColumns"/> FROM med_prescription WHERE encounter_id=#{encounterId} FOR UPDATE
+    </select>
+    <select id="lockDrug" resultType="com.qqlin.medflow.billing.domain.PrescriptionDrug" useCache="false" flushCache="true">
+        SELECT id,code,name,specification,unit,unit_price,status FROM med_drug WHERE id=#{drugId} FOR UPDATE
+    </select>
+    <insert id="insertPrescription">
+        INSERT INTO med_prescription(encounter_id,total_amount,status,version) VALUES(#{encounterId},#{total},'DRAFT',1)
+    </insert>
+    <update id="updateDraft">
+        UPDATE med_prescription SET status='DRAFT',total_amount=#{total},version=version+1
+        WHERE id=#{prescriptionId} AND status IN ('DRAFT','DISCARDED') AND version=#{version}
+    </update>
+    <update id="discardDraft">
+        UPDATE med_prescription SET status='DISCARDED',total_amount=0,version=version+1
+        WHERE id=#{prescriptionId} AND status='DRAFT' AND version=#{version}
+    </update>
+    <update id="issueDraft">
+        UPDATE med_prescription SET status='ISSUED',issued_at=#{now},version=version+1
+        WHERE id=#{prescriptionId} AND status='DRAFT' AND version=#{version}
+    </update>
+    <delete id="deleteItems">DELETE FROM med_prescription_item WHERE prescription_id=#{prescriptionId}</delete>
+    <insert id="insertItem">
+        INSERT INTO med_prescription_item(prescription_id,drug_id,drug_code,drug_name,specification,unit,
+            quantity,instructions,unit_price,line_amount)
+        VALUES(#{prescriptionId},#{item.drugId},#{item.drugCode},#{item.drugName},#{item.specification},#{item.unit},
+            #{item.quantity},#{item.instructions},#{item.unitPrice},#{item.lineAmount})
+    </insert>
+    <select id="findItems" resultType="com.qqlin.medflow.billing.dto.PrescriptionItemResponse">
+        SELECT id,drug_id,drug_code,drug_name,specification,unit,quantity,instructions,unit_price,line_amount
+        FROM med_prescription_item WHERE prescription_id=#{prescriptionId} ORDER BY id
+    </select>
+    <select id="findSummary" resultType="com.qqlin.medflow.billing.dto.PrescriptionSummary">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/> WHERE rx.id=#{prescriptionId}
+    </select>
+    <select id="findPatientSummary" resultType="com.qqlin.medflow.billing.dto.PrescriptionSummary">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/>
+        WHERE rx.id=#{prescriptionId} AND rx.status='ISSUED' AND p.owner_user_id=#{userId}
+    </select>
+    <select id="listPatientSummaries" resultType="com.qqlin.medflow.billing.dto.PrescriptionSummary">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/>
+        WHERE rx.status='ISSUED' AND p.owner_user_id=#{userId}
+        ORDER BY rx.issued_at DESC,rx.id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countPatientSummaries" resultType="long">
+        SELECT COUNT(*) FROM med_prescription rx JOIN med_encounter e ON e.id=rx.encounter_id
+        JOIN med_appointment a ON a.id=e.appointment_id JOIN med_patient p ON p.id=a.patient_id
+        WHERE rx.status='ISSUED' AND p.owner_user_id=#{userId}
+    </select>
+    <sql id="billColumns">id,prescription_id,status,total_amount,paid_at</sql>
+    <select id="findBill" resultType="com.qqlin.medflow.billing.dto.BillResponse">
+        SELECT <include refid="billColumns"/> FROM med_bill WHERE prescription_id=#{prescriptionId}
+    </select>
+    <select id="findBills" resultType="com.qqlin.medflow.billing.dto.BillResponse">
+        SELECT <include refid="billColumns"/> FROM med_bill WHERE prescription_id IN
+        <foreach collection="prescriptionIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+    <insert id="insertBill">
+        INSERT INTO med_bill(prescription_id,total_amount,status,created_at)
+        VALUES(#{prescriptionId},#{total},'UNPAID',#{now})
+    </insert>
+    <select id="lockOwnedBill" resultType="com.qqlin.medflow.billing.dto.BillResponse" useCache="false" flushCache="true">
+        SELECT b.id,b.prescription_id,b.status,b.total_amount,b.paid_at
+        FROM med_bill b JOIN med_prescription rx ON rx.id=b.prescription_id
+        JOIN med_encounter e ON e.id=rx.encounter_id JOIN med_appointment a ON a.id=e.appointment_id
+        JOIN med_patient p ON p.id=a.patient_id
+        WHERE b.id=#{billId} AND p.owner_user_id=#{userId} AND rx.status='ISSUED' FOR UPDATE OF b
+    </select>
+    <update id="markBillPaid">
+        UPDATE med_bill SET status='PAID',paid_at=#{now} WHERE id=#{billId} AND status='UNPAID'
+    </update>
+    <insert id="insertMockPayment">
+        INSERT INTO med_mock_payment(bill_id,paid_by_user_id,amount,paid_at) VALUES(#{billId},#{userId},#{amount},#{now})
+    </insert>
+    <select id="databaseNow" resultType="java.time.LocalDateTime" useCache="false" flushCache="true">
+        SELECT CURRENT_TIMESTAMP(3)
+    </select>
+</mapper>

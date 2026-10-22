@@ -45,8 +45,11 @@
         </foreach>
     </insert>
 
-    <select id="findBookingSnapshot"
-            resultMap="SlotBookingSnapshotResultMap">
+    <!-- Current reads protect the capacity/deadline and parent status. Only
+         the slot needs an exclusive lock; different slots may share a schedule. -->
+    <select id="lockBookingSnapshot"
+            resultMap="SlotBookingSnapshotResultMap"
+            useCache="false" flushCache="true">
         SELECT
             slot.id AS slot_id,
             slot.booking_deadline,
@@ -57,17 +60,37 @@
         INNER JOIN med_schedule schedule
             ON schedule.id = slot.schedule_id
         WHERE slot.id = #{slotId}
+        FOR UPDATE OF slot FOR SHARE OF schedule
+    </select>
+
+    <!-- Must run after the locking read returns. NOW in that same waiting
+         SELECT would represent statement start, before the lock was acquired. -->
+    <select id="currentDatabaseTime" resultType="java.time.LocalDateTime"
+            useCache="false" flushCache="true">
+        SELECT CURRENT_TIMESTAMP(3)
     </select>
 
     <update id="decreaseRemainingCapacityIfBookable">
         UPDATE med_slot slot
-        INNER JOIN med_schedule schedule
-            ON schedule.id = slot.schedule_id
         SET slot.remaining_capacity = slot.remaining_capacity - 1
         WHERE slot.id = #{slotId}
           AND slot.remaining_capacity &gt; 0
           AND slot.status = #{openStatus}
           AND slot.booking_deadline &gt; #{now,jdbcType=TIMESTAMP}
-          AND schedule.status = #{publishedStatus}
+    </update>
+
+    <select id="lockByIdForUpdate" resultType="java.lang.Long"
+            useCache="false" flushCache="true">
+        SELECT id
+        FROM med_slot
+        WHERE id = #{slotId}
+        FOR UPDATE
+    </select>
+
+    <update id="increaseRemainingCapacityWithinLimit">
+        UPDATE med_slot
+        SET remaining_capacity = remaining_capacity + 1
+        WHERE id = #{slotId}
+          AND remaining_capacity &lt; total_capacity
     </update>
 </mapper>

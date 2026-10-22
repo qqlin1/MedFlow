@@ -13,3 +13,6 @@
 *.md text eol=lf
 *.html text eol=lf
 *.sql text eol=lf
+
+# Preserve captured evidence bytes, including Maven's intentional whitespace.
+.codex/evidence/** -text -whitespace

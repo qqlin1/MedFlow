@@ -12,14 +12,21 @@ public interface SlotMapper {
 
     int insertSlots(@Param("slots") List<SlotInsertParam> slots);
 
-    SlotBookingSnapshot findBookingSnapshot(
+    SlotBookingSnapshot lockBookingSnapshot(
             @Param("slotId") long slotId
     );
+
+    LocalDateTime currentDatabaseTime();
 
     int decreaseRemainingCapacityIfBookable(
             @Param("slotId") long slotId,
             @Param("now") LocalDateTime now,
-            @Param("openStatus") String openStatus,
-            @Param("publishedStatus") String publishedStatus
+            @Param("openStatus") String openStatus
+    );
+
+    Long lockByIdForUpdate(@Param("slotId") long slotId);
+
+    int increaseRemainingCapacityWithinLimit(
+            @Param("slotId") long slotId
     );
 }

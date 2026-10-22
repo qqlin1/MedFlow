@@ -8,7 +8,8 @@ public record DoctorResponse(
         long userId,
         long departmentId,
         String name,
-        ResourceStatus status
+        ResourceStatus status,
+        String username
 ) {
 
     public static DoctorResponse from(Doctor doctor) {
@@ -17,7 +18,8 @@ public record DoctorResponse(
                 doctor.userId(),
                 doctor.departmentId(),
                 doctor.name(),
-                doctor.status()
+                doctor.status(),
+                null
         );
     }
 }

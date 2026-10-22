@@ -1,10 +1,12 @@
 package com.qqlin.medflow.identity.security;
 
+import com.qqlin.medflow.identity.repository.UserRepository;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
@@ -15,6 +17,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -39,12 +42,22 @@ public class SecurityConfig {
 
         http
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/demo-config").permitAll()
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/dev/**",
                                 "/error"
+                        ).permitAll()
+
+                        // 前端静态资源：只放行入口页与 assets 目录，
+                        // 其余路径仍由下面的 denyAll 兜底。
+                        .requestMatchers(
+                                "/",
+                                "/index.html",
+                                "/favicon.ico",
+                                "/assets/**"
                         ).permitAll()
 
                         .requestMatchers(
@@ -56,6 +69,7 @@ public class SecurityConfig {
                         ).hasRole("DOCTOR")
 
                         .requestMatchers(
+                                "/api/v1/patient/**",
                                 "/api/v1/patients/**",
                                 "/api/v1/appointments/**"
                         ).hasRole("PATIENT")
@@ -115,7 +129,8 @@ public class SecurityConfig {
     public JwtDecoder jwtDecoder(
             SecretKey jwtSecretKey,
             @Value("${medflow.security.jwt.issuer}")
-            String issuer
+            String issuer,
+            UserRepository userRepository
     ) {
         NimbusJwtDecoder decoder =
                 NimbusJwtDecoder
@@ -124,7 +139,10 @@ public class SecurityConfig {
                         .build();
 
         decoder.setJwtValidator(
-                JwtValidators.createDefaultWithIssuer(issuer)
+                new DelegatingOAuth2TokenValidator<>(
+                        JwtValidators.createDefaultWithIssuer(issuer),
+                        new JwtAccountValidator(userRepository)
+                )
         );
 
         return decoder;

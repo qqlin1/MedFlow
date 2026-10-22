@@ -40,6 +40,9 @@
         )
     </insert>
 
+    <!-- Duplicate-key INSERT can leave many retries holding shared index locks.
+         A shared locking read sees the committed result without upgrading all
+         those locks to exclusive locks. -->
     <select id="lockByUniqueKey"
             resultMap="IdempotencyRecordResultMap"
             useCache="false"
@@ -57,7 +60,7 @@
         WHERE user_id = #{userId}
           AND operation_type = #{operationType}
           AND idempotency_key = #{idempotencyKey}
-        FOR UPDATE
+        FOR SHARE
     </select>
 
     <update id="markSuccess">

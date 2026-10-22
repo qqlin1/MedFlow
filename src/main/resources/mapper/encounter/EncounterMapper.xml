@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qqlin.medflow.encounter.mapper.EncounterMapper">
+    <sql id="summaryColumns">
+        e.id, e.appointment_id, a.patient_id, COALESCE(a.booking_patient_name,p.name) AS patient_name,
+        e.doctor_id, COALESCE(a.booking_doctor_name,d.name) AS doctor_name,
+        COALESCE(a.booking_department_name,dep.name) AS department_name,
+        COALESCE(a.booking_clinic_room_name,room.name) AS clinic_room_name,
+        sl.work_date, sl.start_time, sl.end_time,
+        e.status, e.checked_in_at, e.started_at, e.completed_at, e.version,
+        CASE WHEN source_a.id IS NOT NULL THEN source_e.id ELSE NULL END AS source_encounter_id,
+        source_a.id AS source_appointment_id,source_sl.work_date AS source_work_date,
+        (a.booking_snapshot_at IS NOT NULL) AS has_booking_snapshot
+    </sql>
+    <sql id="summaryJoins">
+        med_encounter e
+        JOIN med_appointment a ON a.id = e.appointment_id
+        JOIN med_patient p ON p.id = a.patient_id
+        JOIN med_slot sl ON sl.id = a.slot_id
+        JOIN med_schedule s ON s.id = sl.schedule_id
+        JOIN med_doctor d ON d.id = e.doctor_id
+        JOIN med_department dep ON dep.id = d.department_id
+        JOIN med_clinic_room room ON room.id = s.clinic_room_id
+        LEFT JOIN med_encounter source_e ON source_e.id=a.source_encounter_id AND source_e.status='COMPLETED'
+        LEFT JOIN med_appointment source_a ON source_a.id=source_e.appointment_id AND source_a.patient_id=a.patient_id
+        LEFT JOIN med_slot source_sl ON source_sl.id=source_a.slot_id
+    </sql>
+    <select id="findOwnedAppointmentSlot" resultType="java.lang.Long">
+        SELECT a.slot_id FROM med_appointment a JOIN med_patient p ON p.id = a.patient_id
+        WHERE a.id = #{appointmentId} AND p.owner_user_id = #{userId}
+    </select>
+    <select id="lockSlot" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM med_slot WHERE id = #{slotId} FOR UPDATE
+    </select>
+    <select id="lockOwnedAppointment" resultType="com.qqlin.medflow.encounter.domain.CheckInAppointment"
+            useCache="false" flushCache="true">
+        SELECT a.id, a.slot_id, a.status, s.doctor_id, sl.work_date, sl.start_time, sl.end_time
+        FROM med_appointment a JOIN med_patient p ON p.id = a.patient_id
+        JOIN med_slot sl ON sl.id = a.slot_id JOIN med_schedule s ON s.id = sl.schedule_id
+        WHERE a.id = #{appointmentId} AND p.owner_user_id = #{userId} FOR UPDATE OF a
+    </select>
+    <select id="databaseNow" resultType="java.time.LocalDateTime" useCache="false" flushCache="true">
+        SELECT CURRENT_TIMESTAMP(3)
+    </select>
+    <select id="findEncounterIdByAppointment" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM med_encounter WHERE appointment_id = #{appointmentId}
+    </select>
+    <select id="findDoctorId" resultType="java.lang.Long">
+        SELECT id FROM med_doctor WHERE user_id = #{userId} AND status = 'ENABLED'
+    </select>
+    <select id="lockDoctorId" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM med_doctor WHERE user_id = #{userId} AND status = 'ENABLED' FOR UPDATE
+    </select>
+    <select id="lockDoctorEncounter" resultType="com.qqlin.medflow.encounter.dto.EncounterSummary"
+            useCache="false" flushCache="true">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/>
+        WHERE e.id = #{encounterId} AND e.doctor_id = #{doctorId} FOR UPDATE OF e
+    </select>
+    <select id="findDoctorEncounter" resultType="com.qqlin.medflow.encounter.dto.EncounterSummary">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/>
+        WHERE e.id = #{encounterId} AND e.doctor_id = #{doctorId}
+    </select>
+    <select id="findPatientEncounter" resultType="com.qqlin.medflow.encounter.dto.EncounterSummary">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/>
+        WHERE e.appointment_id = #{appointmentId} AND p.owner_user_id = #{userId}
+    </select>
+    <select id="findAttendingEncounter" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM med_encounter WHERE doctor_id = #{doctorId} AND status = 'IN_PROGRESS' LIMIT 1
+    </select>
+    <insert id="insertEncounter">
+        INSERT INTO med_encounter(appointment_id, doctor_id, status, checked_in_at)
+        VALUES(#{appointmentId}, #{doctorId}, 'WAITING', #{now})
+    </insert>
+    <update id="transition">
+        UPDATE med_encounter SET status = #{toStatus}, version = version + 1,
+            started_at = CASE WHEN #{toStatus} = 'IN_PROGRESS' THEN #{now} ELSE started_at END,
+            completed_at = CASE WHEN #{toStatus} = 'COMPLETED' THEN #{now} ELSE completed_at END
+        WHERE id = #{encounterId} AND status = #{fromStatus}
+    </update>
+    <insert id="insertHistory">
+        INSERT INTO med_encounter_status_log(encounter_id, from_status, to_status, event_type, actor_user_id, created_at)
+        VALUES(#{encounterId}, #{fromStatus,jdbcType=VARCHAR}, #{toStatus}, #{eventType}, #{userId}, #{now})
+    </insert>
+    <select id="findMedicalRecord" resultType="com.qqlin.medflow.encounter.dto.MedicalRecordResponse">
+        SELECT id, encounter_id, chief_complaint, present_illness, diagnosis, advice, version, updated_at
+        FROM med_medical_record WHERE encounter_id = #{encounterId}
+    </select>
+    <insert id="insertMedicalRecord">
+        INSERT INTO med_medical_record(encounter_id, chief_complaint, present_illness, diagnosis, advice, version, updated_at)
+        VALUES(#{encounterId}, #{record.chiefComplaint}, #{record.presentIllness}, #{record.diagnosis}, #{record.advice}, 1, #{now})
+    </insert>
+    <update id="updateMedicalRecord">
+        UPDATE med_medical_record SET chief_complaint = #{record.chiefComplaint}, present_illness = #{record.presentIllness},
+            diagnosis = #{record.diagnosis}, advice = #{record.advice}, version = version + 1, updated_at = #{now}
+        WHERE encounter_id = #{encounterId} AND version = #{record.version}
+    </update>
+    <select id="findHistory" resultType="com.qqlin.medflow.encounter.dto.EncounterHistoryResponse">
+        SELECT id, from_status, to_status, event_type, actor_user_id, created_at
+        FROM med_encounter_status_log WHERE encounter_id = #{encounterId} ORDER BY created_at, id
+    </select>
+    <sql id="doctorQueueFilter">
+        WHERE e.doctor_id = #{doctorId} AND sl.work_date = #{workDate}
+        <if test="status != null">AND e.status = #{status}</if>
+    </sql>
+    <select id="listDoctorEncounters" resultType="com.qqlin.medflow.encounter.dto.EncounterSummary">
+        SELECT <include refid="summaryColumns"/> FROM <include refid="summaryJoins"/>
+        <include refid="doctorQueueFilter"/>
+        ORDER BY sl.start_time, e.checked_in_at, e.id LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countDoctorEncounters" resultType="long">
+        SELECT COUNT(*) FROM med_encounter e JOIN med_appointment a ON a.id = e.appointment_id
+        JOIN med_slot sl ON sl.id = a.slot_id <include refid="doctorQueueFilter"/>
+    </select>
+    <!-- Complete and prescription writes both serialize on Encounter first. -->
+    <select id="lockPrescriptionStatus" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT status FROM med_prescription WHERE encounter_id=#{encounterId} FOR UPDATE
+    </select>
+</mapper>

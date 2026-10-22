@@ -1,5 +1,8 @@
 param(
-    [string]$MySqlBin = 'C:\Program Files\MySQL\MySQL Server 8.4\bin'
+    [string]$MySqlBin = 'C:\Program Files\MySQL\MySQL Server 8.4\bin',
+    [ValidatePattern('^[A-Za-z0-9_,.*#]+$')]
+    [string]$TestSelection =
+        'AppointmentServiceTest,AppointmentCancellationServiceTest,AppointmentExpirationWorkerTest,AppointmentControllerTest,AppointmentQueryControllerTest,AppointmentConfirmationMySqlIT,AppointmentExpirationSchedulerMySqlIT'
 )
 
 # Runs against a disposable MySQL process, never the normal MedFlow database.
@@ -29,6 +32,7 @@ $mysqlBaseDirectory = Split-Path -Parent $MySqlBin
 $oldTestUrl = [Environment]::GetEnvironmentVariable('MEDFLOW_CONFIRMATION_TEST_URL', 'Process')
 $serverProcess = $null
 $initializeProcess = $null
+$connectionArguments = $null
 $testExitCode = 1
 $port = 0
 
@@ -43,9 +47,11 @@ try {
         -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logDirectory 'initialize.out.log') `
         -RedirectStandardError (Join-Path $logDirectory 'initialize.err.log')
+    $null = $initializeProcess.Handle
     if (-not $initializeProcess.WaitForExit(60000)) {
         throw 'Temporary MySQL initialization timed out.'
     }
+    $initializeProcess.Refresh()
     if ($initializeProcess.ExitCode -ne 0) {
         throw "Temporary MySQL initialization failed. Logs: $logDirectory"
     }
@@ -102,11 +108,11 @@ try {
     }
     $env:MEDFLOW_CONFIRMATION_TEST_URL = "jdbc:mysql://127.0.0.1:$port/medflow_confirmation_test?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
 
-    Write-Host "Running confirmation checks on isolated MySQL port $port."
+    Write-Host "Running $TestSelection on isolated MySQL port $port."
     Push-Location $projectDirectory
     try {
         & (Join-Path $projectDirectory 'mvnw.cmd') `
-            '-Dtest=AppointmentServiceTest,AppointmentControllerTest,AppointmentConfirmationMySqlIT' test
+            "-Dtest=$TestSelection" test
         $testExitCode = $LASTEXITCODE
     } finally {
         Pop-Location
@@ -122,7 +128,7 @@ try {
             $ownedListener = Get-NetTCPConnection -State Listen -LocalPort $port `
                 -ErrorAction SilentlyContinue |
                 Where-Object { $_.OwningProcess -eq $serverProcess.Id }
-            if ($ownedListener) {
+            if ($ownedListener -and $connectionArguments) {
                 & $adminExecutable @connectionArguments shutdown 2>$null | Out-Null
             }
         } finally {

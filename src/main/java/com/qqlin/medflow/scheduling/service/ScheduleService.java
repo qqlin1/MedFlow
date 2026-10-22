@@ -19,6 +19,7 @@ import com.qqlin.medflow.shared.exception.BusinessException;
 import com.qqlin.medflow.shared.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -46,7 +47,9 @@ public class ScheduleService {
         this.slotRepository = slotRepository;
     }
 
-    @Transactional
+    // Resource row locks serialize conflicting creators. RC avoids RR range
+    // gap locks making independent creators deadlock on their later INSERTs.
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public long createDraft(CreateScheduleCommand command) {
         validateCommand(command);
 
@@ -84,6 +87,13 @@ public class ScheduleService {
                 shiftTemplate.capacityPerSlot()
         );
 
+        /*
+         * The old RR implementation reused the template read's snapshot after
+         * a resource lock wait. Overlap queries now read current rows after
+         * doctor -> room locks; this transaction uses RC to avoid protecting
+         * empty ranges needed by unrelated schedule creators. Every creator
+         * must follow the same resource-lock protocol to prevent overlaps.
+         */
         if (scheduleRepository.existsDoctorOverlap(draft)
                 || scheduleRepository.existsClinicRoomOverlap(draft)) {
             throw new BusinessException(

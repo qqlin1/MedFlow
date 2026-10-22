@@ -14,6 +14,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.security.core.AuthenticationException;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -87,9 +89,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Result<Void>> handleConstraintViolation(ConstraintViolationException exception) {
+        String message = exception.getConstraintViolations().stream()
+                .map(violation -> violation.getMessage()).findFirst()
+                .orElse(ErrorCode.VALIDATION_FAILED.getDefaultMessage());
+        return buildResponse(ErrorCode.VALIDATION_FAILED, message);
+    }
+
     @ExceptionHandler({
             MethodArgumentTypeMismatchException.class,
-            MissingRequestHeaderException.class
+            MissingRequestHeaderException.class,
+            MissingServletRequestParameterException.class
     })
     public ResponseEntity<Result<Void>> handleInvalidRequestParameter(
             Exception exception

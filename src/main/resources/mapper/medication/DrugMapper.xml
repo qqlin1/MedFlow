@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qqlin.medflow.medication.mapper.DrugMapper">
+    <sql id="columns">id, code, name, specification, unit, unit_price, status, version</sql>
+    <sql id="filter">
+        <where>
+            <if test="keyword != null">
+                (code LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+                    OR name LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+                    OR specification LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!')
+            </if>
+            <if test="status != null">AND status = #{status}</if>
+        </where>
+    </sql>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO med_drug(code, name, specification, unit, unit_price, status, version)
+        VALUES (#{code}, #{name}, #{specification}, #{unit}, #{unitPrice}, 'ENABLED', 0)
+    </insert>
+    <select id="findById" resultType="com.qqlin.medflow.medication.domain.Drug">
+        SELECT <include refid="columns"/> FROM med_drug WHERE id = #{id}
+    </select>
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM med_drug <include refid="filter"/>
+    </select>
+    <select id="findPage" resultType="com.qqlin.medflow.medication.domain.Drug">
+        SELECT <include refid="columns"/> FROM med_drug <include refid="filter"/>
+        ORDER BY name, id LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <update id="updateIfVersion">
+        UPDATE med_drug SET name = #{name}, specification = #{specification}, unit = #{unit},
+            unit_price = #{unitPrice}, status = #{status}, version = version + 1
+        WHERE id = #{id} AND version = #{version}
+    </update>
+</mapper>

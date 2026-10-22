@@ -1,6 +1,15 @@
 spring:
   application:
     name: medflow
+  data:
+    redis:
+      host: ${MEDFLOW_REDIS_HOST:127.0.0.1}
+      port: ${MEDFLOW_REDIS_PORT:6379}
+      password: ${MEDFLOW_REDIS_PASSWORD:}
+      connect-timeout: 200ms
+      timeout: 200ms
+      repositories:
+        enabled: false
 
   datasource:
     url: ${MEDFLOW_DB_URL:jdbc:mysql://127.0.0.1:3306/medflow?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
@@ -32,6 +41,22 @@ springdoc:
     enabled: false
 
 medflow:
+  doctor-cache:
+    enabled: ${MEDFLOW_DOCTOR_CACHE_ENABLED:true}
+    ttl: ${MEDFLOW_DOCTOR_CACHE_TTL:PT5M}
+    null-ttl: ${MEDFLOW_DOCTOR_CACHE_NULL_TTL:PT30S}
+    failure-backoff: PT5S
+  demo:
+    workflow:
+      enabled: ${MEDFLOW_DEMO_WORKFLOW_ENABLED:false}
+    accounts:
+      enabled: ${MEDFLOW_DEMO_ACCOUNTS_ENABLED:false}
+  appointment:
+    expiration:
+      enabled: ${MEDFLOW_EXPIRATION_ENABLED:true}
+      batch-size: 100
+      poll-interval-ms: 5000
+      initial-delay-ms: 5000
   security:
     jwt:
       secret: ${MEDFLOW_JWT_SECRET}

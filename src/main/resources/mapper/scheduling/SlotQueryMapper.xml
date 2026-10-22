@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qqlin.medflow.scheduling.mapper.SlotQueryMapper">
+
+    <resultMap id="AvailableSlotResultMap"
+               type="com.qqlin.medflow.scheduling.domain.AvailableSlot">
+        <constructor>
+            <idArg column="slot_id" javaType="_long"/>
+            <arg column="schedule_id" javaType="_long"/>
+            <arg column="department_id" javaType="_long"/>
+            <arg column="department_name" javaType="java.lang.String"/>
+            <arg column="doctor_id" javaType="_long"/>
+            <arg column="doctor_name" javaType="java.lang.String"/>
+            <arg column="clinic_room_id" javaType="_long"/>
+            <arg column="clinic_room_name" javaType="java.lang.String"/>
+            <arg column="work_date" javaType="java.time.LocalDate"/>
+            <arg column="start_time" javaType="java.time.LocalTime"/>
+            <arg column="end_time" javaType="java.time.LocalTime"/>
+            <arg column="booking_deadline" javaType="java.time.LocalDateTime"/>
+            <arg column="remaining_capacity" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <!-- Count and page share both the eligibility rules and a database clock value. -->
+    <sql id="AvailableSlotsFromWhere">
+        FROM med_slot slot
+        INNER JOIN med_schedule schedule ON schedule.id = slot.schedule_id
+        INNER JOIN med_doctor doctor ON doctor.id = schedule.doctor_id
+        INNER JOIN med_department department ON department.id = doctor.department_id
+        INNER JOIN med_clinic_room room ON room.id = schedule.clinic_room_id
+        WHERE slot.work_date = #{workDate,jdbcType=DATE}
+          AND schedule.status = 'PUBLISHED'
+          AND slot.work_date = schedule.work_date
+          AND doctor.status = 'ENABLED'
+          AND department.status = 'ENABLED'
+          AND room.status = 'ENABLED'
+          AND room.department_id = doctor.department_id
+          AND slot.status = 'OPEN'
+          AND slot.remaining_capacity &gt; 0
+          AND slot.booking_deadline &gt; #{now,jdbcType=TIMESTAMP}
+          AND TIMESTAMP(slot.work_date, slot.start_time) &gt; #{now,jdbcType=TIMESTAMP}
+        <if test="departmentId != null">
+          AND doctor.department_id = #{departmentId}
+        </if>
+        <if test="doctorId != null">
+          AND doctor.id = #{doctorId}
+        </if>
+    </sql>
+
+    <select id="currentDatabaseTime" resultType="java.time.LocalDateTime"
+            useCache="false" flushCache="true">
+        SELECT CURRENT_TIMESTAMP(3)
+    </select>
+
+    <select id="countAvailable" resultType="_long">
+        SELECT COUNT(*)
+        <include refid="AvailableSlotsFromWhere"/>
+    </select>
+
+    <select id="findAvailablePage" resultMap="AvailableSlotResultMap">
+        SELECT
+            slot.id AS slot_id,
+            slot.schedule_id,
+            department.id AS department_id,
+            department.name AS department_name,
+            doctor.id AS doctor_id,
+            doctor.name AS doctor_name,
+            room.id AS clinic_room_id,
+            room.name AS clinic_room_name,
+            slot.work_date,
+            slot.start_time,
+            slot.end_time,
+            slot.booking_deadline,
+            slot.remaining_capacity
+        <include refid="AvailableSlotsFromWhere"/>
+        ORDER BY slot.start_time ASC, slot.id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>

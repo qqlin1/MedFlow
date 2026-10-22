@@ -22,6 +22,10 @@ target/
 logs/
 .env
 
+### Local assistant state and downloaded installers ###
+/.workbuddy-ai/
+/tools/redis/
+
 ### Operating system ###
 .DS_Store
 Thumbs.db

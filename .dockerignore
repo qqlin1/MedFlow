@@ -1,0 +1,17 @@
+# 构建上下文里用不到的东西，排除掉可以让 docker build 更快
+target/
+.git/
+.gitattributes
+.idea/
+.vscode/
+.codex/
+.workbuddy-ai/
+tools/
+*.log
+*.md
+.env
+.env.example
+Dockerfile
+docker-compose.yml
+mvnw
+mvnw.cmd

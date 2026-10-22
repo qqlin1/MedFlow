@@ -19,7 +19,10 @@
         </constructor>
     </resultMap>
 
-    <select id="findDoctorOverlap" resultType="java.lang.Integer">
+    <select id="findDoctorOverlap"
+            resultType="java.lang.Integer"
+            useCache="false"
+            flushCache="true">
         SELECT 1
         FROM med_schedule
         WHERE doctor_id = #{doctorId}
@@ -28,9 +31,13 @@
           AND start_time &lt; #{endTime,jdbcType=TIME}
           AND end_time &gt; #{startTime,jdbcType=TIME}
         LIMIT 1
+        FOR UPDATE
     </select>
 
-    <select id="findClinicRoomOverlap" resultType="java.lang.Integer">
+    <select id="findClinicRoomOverlap"
+            resultType="java.lang.Integer"
+            useCache="false"
+            flushCache="true">
         SELECT 1
         FROM med_schedule
         WHERE clinic_room_id = #{clinicRoomId}
@@ -39,6 +46,7 @@
           AND start_time &lt; #{endTime,jdbcType=TIME}
           AND end_time &gt; #{startTime,jdbcType=TIME}
         LIMIT 1
+        FOR UPDATE
     </select>
 
     <insert id="insertDraft"

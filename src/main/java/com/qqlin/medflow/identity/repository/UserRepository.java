@@ -23,4 +23,8 @@ public class UserRepository {
                 userMapper.findByUsername(username)
         );
     }
+
+    public Optional<UserAccount> findById(long id) {
+        return Optional.ofNullable(userMapper.findById(id));
+    }
 }

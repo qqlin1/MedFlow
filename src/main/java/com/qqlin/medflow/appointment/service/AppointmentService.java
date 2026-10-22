@@ -4,12 +4,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qqlin.medflow.appointment.domain.Appointment;
 import com.qqlin.medflow.appointment.domain.AppointmentCreationResult;
+import com.qqlin.medflow.appointment.domain.AppointmentCursor;
+import com.qqlin.medflow.appointment.domain.AppointmentCursorItem;
+import com.qqlin.medflow.appointment.domain.AppointmentDetail;
+import com.qqlin.medflow.appointment.domain.AppointmentPage;
+import com.qqlin.medflow.appointment.domain.AppointmentSlice;
 import com.qqlin.medflow.appointment.domain.AppointmentStatus;
 import com.qqlin.medflow.appointment.domain.CreateAppointmentCommand;
 import com.qqlin.medflow.appointment.domain.IdempotencyRecord;
 import com.qqlin.medflow.appointment.domain.IdempotencyStatus;
 import com.qqlin.medflow.appointment.repository.AppointmentRepository;
 import com.qqlin.medflow.appointment.repository.IdempotencyRepository;
+import com.qqlin.medflow.appointment.query.FollowUpSource;
 import com.qqlin.medflow.patient.service.PatientService;
 import com.qqlin.medflow.scheduling.domain.ScheduleStatus;
 import com.qqlin.medflow.scheduling.domain.SlotBookingSnapshot;
@@ -27,6 +33,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.List;
 
 @Service
 public class AppointmentService {
@@ -53,6 +60,97 @@ public class AppointmentService {
         this.appointmentRepository = appointmentRepository;
         this.idempotencyRepository = idempotencyRepository;
         this.objectMapper = objectMapper;
+    }
+
+    @Transactional(readOnly = true)
+    public FollowUpSource getOwnedFollowUpSource(long currentUserId,long encounterId) {
+        validateAppointmentAction(currentUserId,encounterId);
+        return appointmentRepository.findOwnedCompletedFollowUpSource(currentUserId,encounterId)
+                .orElseThrow(()->new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public AppointmentDetail getOwnedDetail(
+            long currentUserId,
+            long appointmentId
+    ) {
+        validateAppointmentAction(currentUserId, appointmentId);
+
+        Appointment appointment = appointmentRepository
+                .findOwnedById(appointmentId, currentUserId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.APPOINTMENT_NOT_FOUND
+                ));
+
+        return new AppointmentDetail(
+                appointment,
+                appointmentRepository.findHistoryOwnedById(
+                        appointmentId,
+                        currentUserId
+                )
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public AppointmentPage findOwnedPage(
+            long currentUserId,
+            int page,
+            int size
+    ) {
+        if (currentUserId <= 0 || page < 1 || size < 1 || size > 50) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        // Under the current MySQL REPEATABLE READ setting, COUNT, the patient
+        // probe and PAGE share this read-only transaction's first read view.
+        long total = appointmentRepository.countOwnedByUser(currentUserId);
+        long offset = (long) (page - 1) * size;
+        List<Appointment> items;
+        if (offset >= total) {
+            items = List.of();
+        } else {
+            List<Long> patientIds = appointmentRepository
+                    .findUpToTwoPatientIdsOwnedByUser(currentUserId);
+            items = patientIds.size() == 1
+                    ? appointmentRepository.findPageOwnedBySinglePatient(
+                            patientIds.getFirst(), currentUserId, offset, size)
+                    : appointmentRepository.findPageOwnedByUser(
+                            currentUserId, offset, size);
+        }
+
+        return new AppointmentPage(items, total, page, size);
+    }
+
+    /** Each request has its own read view; the cursor is a sorting boundary. */
+    @Transactional(readOnly = true)
+    public AppointmentSlice findOwnedSlice(
+            long currentUserId, int size, AppointmentCursor cursor
+    ) {
+        if (currentUserId <= 0 || size < 1 || size > 50
+                || (cursor != null && (cursor.id() <= 0
+                || cursor.createdAt() == null
+                || cursor.createdAt().getYear() < 1000
+                || cursor.createdAt().getYear() > 9999
+                || cursor.createdAt().getNano() % 1_000_000 != 0))) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        List<Long> patientIds = appointmentRepository
+                .findUpToTwoPatientIdsOwnedByUser(currentUserId);
+        if (patientIds.isEmpty()) {
+            return new AppointmentSlice(List.of(), false, null, size);
+        }
+        List<AppointmentCursorItem> candidates = patientIds.size() == 1
+                ? appointmentRepository.findSliceOwnedBySinglePatient(
+                        patientIds.getFirst(), currentUserId, cursor, size + 1)
+                : appointmentRepository.findSliceOwnedByUser(
+                        currentUserId, cursor, size + 1);
+
+        boolean hasNext = candidates.size() > size;
+        List<AppointmentCursorItem> items = hasNext
+                ? candidates.subList(0, size) : candidates;
+        AppointmentCursor nextCursor = hasNext ? items.getLast().cursor() : null;
+        return new AppointmentSlice(items, hasNext, nextCursor, size);
     }
 
     /**
@@ -84,15 +182,26 @@ public class AppointmentService {
             return idempotency.replayResult();
         }
 
+        if (command.sourceEncounterId() != null) {
+            FollowUpSource source=getOwnedFollowUpSource(currentUserId,command.sourceEncounterId());
+            if(source.patientId()!=command.patientId()) {
+                // Another family member under the same account cannot borrow this visit.
+                throw new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND);
+            }
+        }
+
         long idempotencyRecordId =
                 idempotency.processingRecordId();
 
-        LocalDateTime now = LocalDateTime.now();
         SlotBookingSnapshot slot = slotBookingService
-                .findBookingSnapshot(command.slotId())
+                .lockBookingSnapshot(command.slotId())
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.SLOT_NOT_FOUND
                 ));
+
+        // Both slot and parent status locks are already held. A new statement
+        // reads DB time after any wait, independently of the application's clock.
+        LocalDateTime now = slotBookingService.currentDatabaseTime();
 
         assertBookable(slot, now);
 
@@ -109,7 +218,7 @@ public class AppointmentService {
                 command.slotId(),
                 now
         )) {
-            throwCurrentSlotFailure(command.slotId(), now);
+            throwCurrentSlotFailure(command.slotId());
         }
 
         LocalDateTime confirmDeadline = min(
@@ -136,6 +245,9 @@ public class AppointmentService {
                     ErrorCode.DUPLICATE_APPOINTMENT
             );
         }
+
+        appointmentRepository.storeBookingContext(appointmentId,currentUserId,command.patientId(),
+                command.slotId(),command.sourceEncounterId());
 
         appointmentRepository.insertCreatedStatusLog(
                 appointmentId,
@@ -210,6 +322,158 @@ public class AppointmentService {
         );
     }
 
+    /**
+     * A repeated cancellation of an already CANCELLED appointment is a
+     * successful no-op. Slot is locked before Appointment so every operation
+     * that changes capacity follows the same physical resource order as
+     * appointment creation.
+     */
+    @Transactional
+    public Appointment cancel(long currentUserId, long appointmentId) {
+        validateAppointmentAction(currentUserId, appointmentId);
+
+        Appointment observed = appointmentRepository
+                .findOwnedById(appointmentId, currentUserId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.APPOINTMENT_NOT_FOUND
+                ));
+
+        if (observed.status() == AppointmentStatus.CANCELLED) {
+            return observed;
+        }
+
+        if (observed.status() == AppointmentStatus.EXPIRED) {
+            throw new BusinessException(
+                    ErrorCode.APPOINTMENT_NOT_CANCELLABLE
+            );
+        }
+
+        slotBookingService.lockForCapacityReturn(observed.slotId());
+
+        Appointment current = appointmentRepository
+                .lockOwnedByIdForUpdate(appointmentId, currentUserId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.APPOINTMENT_NOT_FOUND
+                ));
+
+        assertSameSlot(observed, current);
+
+        // Check-in locks the same Slot then Appointment. A current read here
+        // observes a check-in that committed while this cancellation waited.
+        if (appointmentRepository.hasEncounterForCancellation(appointmentId)) {
+            throw new BusinessException(ErrorCode.APPOINTMENT_ALREADY_CHECKED_IN);
+        }
+
+        if (current.status() == AppointmentStatus.CANCELLED) {
+            return current;
+        }
+
+        if (current.status() != AppointmentStatus.PENDING_CONFIRMATION
+                && current.status() != AppointmentStatus.BOOKED) {
+            throw new BusinessException(
+                    ErrorCode.APPOINTMENT_NOT_CANCELLABLE
+            );
+        }
+
+        if (!appointmentRepository.markCancelledIfActiveBeforeDeadline(
+                appointmentId,
+                currentUserId
+        )) {
+            throw new BusinessException(
+                    ErrorCode.APPOINTMENT_CANCELLATION_EXPIRED
+            );
+        }
+
+        slotBookingService.returnOneCapacity(current.slotId());
+        appointmentRepository.insertCancelledStatusLog(
+                appointmentId,
+                current.status(),
+                currentUserId
+        );
+
+        return withStatus(current, AppointmentStatus.CANCELLED);
+    }
+
+    /**
+     * Transactional operation invoked by the expiration scanner. Returning
+     * false is a normal idempotent no-op: the appointment is missing, not due,
+     * or another state transition has already won.
+     */
+    @Transactional
+    public boolean expirePending(long appointmentId) {
+        if (appointmentId <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+
+        Appointment observed = appointmentRepository
+                .findById(appointmentId)
+                .orElse(null);
+
+        if (observed == null
+                || observed.status()
+                != AppointmentStatus.PENDING_CONFIRMATION) {
+            return false;
+        }
+
+        slotBookingService.lockForCapacityReturn(observed.slotId());
+
+        Appointment current = appointmentRepository
+                .lockByIdForUpdate(appointmentId)
+                .orElse(null);
+
+        if (current == null) {
+            return false;
+        }
+
+        assertSameSlot(observed, current);
+
+        if (current.status()
+                != AppointmentStatus.PENDING_CONFIRMATION) {
+            return false;
+        }
+
+        if (!appointmentRepository
+                .markExpiredIfPendingAtOrBeforeDeadline(appointmentId)) {
+            return false;
+        }
+
+        slotBookingService.returnOneCapacity(current.slotId());
+        appointmentRepository.insertExpiredStatusLog(appointmentId);
+        return true;
+    }
+
+    private void validateAppointmentAction(
+            long currentUserId,
+            long appointmentId
+    ) {
+        if (currentUserId <= 0 || appointmentId <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+    }
+
+    private void assertSameSlot(
+            Appointment observed,
+            Appointment current
+    ) {
+        if (observed.slotId() != current.slotId()) {
+            throw new IllegalStateException("预约关联的号源在事务中发生变化");
+        }
+    }
+
+    private Appointment withStatus(
+            Appointment appointment,
+            AppointmentStatus status
+    ) {
+        return new Appointment(
+                appointment.id(),
+                appointment.patientId(),
+                appointment.slotId(),
+                status,
+                appointment.confirmDeadline(),
+                appointment.cancelDeadline()
+        );
+    }
+
     private IdempotencyAcquisition acquireIdempotencyRecord(
             long currentUserId,
             String idempotencyKey,
@@ -253,17 +517,14 @@ public class AppointmentService {
         }
     }
 
-    private void throwCurrentSlotFailure(
-            long slotId,
-            LocalDateTime now
-    ) {
+    private void throwCurrentSlotFailure(long slotId) {
         SlotBookingSnapshot current = slotBookingService
-                .findBookingSnapshot(slotId)
+                .lockBookingSnapshot(slotId)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.SLOT_NOT_FOUND
                 ));
 
-        assertBookable(current, now);
+        assertBookable(current, slotBookingService.currentDatabaseTime());
 
         // Reaching this line means a concurrent change occurred after the
         // reread. Returning a conflict is safer than pretending it succeeded.
@@ -302,6 +563,7 @@ public class AppointmentService {
                 || command == null
                 || command.patientId() <= 0
                 || command.slotId() <= 0
+                || (command.sourceEncounterId() != null && command.sourceEncounterId() <= 0)
                 || command.idempotencyKey() == null
                 || command.idempotencyKey().isBlank()
                 || command.idempotencyKey().length() > 64) {
@@ -319,6 +581,11 @@ public class AppointmentService {
                 + command.patientId()
                 + "|"
                 + command.slotId();
+
+        // Preserve the exact pre-B03 hash for ordinary/legacy requests.
+        if (command.sourceEncounterId() != null) {
+            normalizedRequest += "|sourceEncounterId=" + command.sourceEncounterId();
+        }
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

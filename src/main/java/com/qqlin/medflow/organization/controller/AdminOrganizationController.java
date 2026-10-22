@@ -8,6 +8,7 @@ import com.qqlin.medflow.organization.dto.CreateDoctorRequest;
 import com.qqlin.medflow.organization.dto.DepartmentResponse;
 import com.qqlin.medflow.organization.dto.DoctorResponse;
 import com.qqlin.medflow.organization.service.OrganizationService;
+import com.qqlin.medflow.organization.query.AdminDoctorDirectoryQuery;
 import com.qqlin.medflow.shared.web.Result;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -27,11 +28,14 @@ import java.util.List;
 public class AdminOrganizationController {
 
     private final OrganizationService organizationService;
+    private final AdminDoctorDirectoryQuery doctorDirectory;
 
     public AdminOrganizationController(
-            OrganizationService organizationService
+            OrganizationService organizationService,
+            AdminDoctorDirectoryQuery doctorDirectory
     ) {
         this.organizationService = organizationService;
+        this.doctorDirectory = doctorDirectory;
     }
 
     @PostMapping("/departments")
@@ -114,13 +118,7 @@ public class AdminOrganizationController {
             long departmentId
     ) {
         return Result.success(
-                organizationService
-                        .findEnabledDoctorsByDepartmentId(
-                                departmentId
-                        )
-                        .stream()
-                        .map(DoctorResponse::from)
-                        .toList()
+                doctorDirectory.findEnabledByDepartment(departmentId)
         );
     }
 }

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qqlin.medflow.patient.history.PatientHistoryMapper">
+    <sql id="patientColumns">p.id,p.owner_user_id,p.name,p.gender,p.birth_date,p.phone,p.relationship</sql>
+    <select id="findOwnedPatient" resultType="com.qqlin.medflow.patient.domain.Patient">
+        SELECT <include refid="patientColumns"/> FROM med_patient p WHERE p.id=#{patientId} AND p.owner_user_id=#{userId}
+    </select>
+    <select id="findDoctorAnchorPatient" resultType="com.qqlin.medflow.patient.domain.Patient">
+        SELECT <include refid="patientColumns"/> FROM med_appointment anchor
+        JOIN med_patient p ON p.id=anchor.patient_id JOIN med_slot sl ON sl.id=anchor.slot_id
+        JOIN med_schedule s ON s.id=sl.schedule_id JOIN med_doctor d ON d.id=s.doctor_id
+        LEFT JOIN med_encounter attended ON attended.appointment_id=anchor.id
+        WHERE anchor.id=#{anchorAppointmentId} AND d.user_id=#{userId} AND d.status='ENABLED'
+          AND (anchor.status='BOOKED' OR attended.id IS NOT NULL)
+          <!-- Existing attendance must agree with the scheduled/bound doctor.
+               A dirty record or later reassignment must not expand access. -->
+          AND (attended.id IS NULL OR attended.doctor_id=d.id)
+    </select>
+    <sql id="visitColumns">
+        a.id AS appointment_id,sl.work_date,sl.start_time,sl.end_time,d.id AS doctor_id,
+        COALESCE(a.booking_doctor_name,d.name) AS doctor_name,
+        COALESCE(a.booking_department_name,dep.name) AS department_name,
+        COALESCE(a.booking_clinic_room_name,room.name) AS clinic_room_name,a.status AS appointment_status,
+        e.id AS encounter_id,e.status AS encounter_status,mr.chief_complaint,mr.diagnosis,
+        rx.id AS prescription_id,b.status AS bill_status,rx.total_amount,
+        COALESCE(a.booking_patient_name,p.name) AS patient_name,
+        CASE WHEN a.booking_snapshot_at IS NOT NULL THEN a.booking_doctor_title ELSE d.title END AS doctor_title,
+        CASE WHEN source_a.id IS NOT NULL THEN source_e.id ELSE NULL END AS source_encounter_id,
+        source_a.id AS source_appointment_id,source_sl.work_date AS source_work_date,
+        (a.booking_snapshot_at IS NOT NULL) AS has_booking_snapshot
+    </sql>
+    <sql id="visitJoins">
+        med_appointment a JOIN med_patient p ON p.id=a.patient_id
+        JOIN med_slot sl ON sl.id=a.slot_id JOIN med_schedule s ON s.id=sl.schedule_id
+        JOIN med_doctor d ON d.id=s.doctor_id JOIN med_department dep ON dep.id=d.department_id
+        JOIN med_clinic_room room ON room.id=s.clinic_room_id
+        LEFT JOIN med_encounter e ON e.appointment_id=a.id
+        LEFT JOIN med_medical_record mr ON mr.encounter_id=e.id AND e.status='COMPLETED'
+        LEFT JOIN med_prescription rx ON rx.encounter_id=e.id AND rx.status='ISSUED'
+        LEFT JOIN med_bill b ON b.prescription_id=rx.id
+        LEFT JOIN med_encounter source_e ON source_e.id=a.source_encounter_id AND source_e.status='COMPLETED'
+        LEFT JOIN med_appointment source_a ON source_a.id=source_e.appointment_id AND source_a.patient_id=a.patient_id
+        LEFT JOIN med_slot source_sl ON source_sl.id=source_a.slot_id
+    </sql>
+    <select id="findPage" resultType="com.qqlin.medflow.patient.history.HistoryVisit">
+        SELECT <include refid="visitColumns"/> FROM <include refid="visitJoins"/>
+        WHERE a.patient_id=#{patientId}
+        ORDER BY sl.work_date DESC,sl.start_time DESC,a.id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="count" resultType="long">SELECT COUNT(*) FROM med_appointment WHERE patient_id=#{patientId}</select>
+    <select id="findVisit" resultType="com.qqlin.medflow.patient.history.HistoryVisit">
+        SELECT <include refid="visitColumns"/> FROM <include refid="visitJoins"/>
+        WHERE a.id=#{appointmentId} AND a.patient_id=#{patientId}
+    </select>
+    <select id="findCompletedMedicalRecord" resultType="com.qqlin.medflow.encounter.dto.MedicalRecordResponse">
+        SELECT mr.id,mr.encounter_id,mr.chief_complaint,mr.present_illness,mr.diagnosis,mr.advice,mr.version,mr.updated_at
+        FROM med_medical_record mr JOIN med_encounter e ON e.id=mr.encounter_id
+        WHERE mr.encounter_id=#{encounterId} AND e.status='COMPLETED'
+    </select>
+    <select id="findAppointmentHistory" resultType="com.qqlin.medflow.appointment.domain.AppointmentStatusChange">
+        SELECT id,from_status,to_status,event_type,actor_user_id,created_at FROM med_appointment_status_log
+        WHERE appointment_id=#{appointmentId} ORDER BY created_at,id
+    </select>
+    <select id="findEncounterHistory" resultType="com.qqlin.medflow.encounter.dto.EncounterHistoryResponse">
+        SELECT id,from_status,to_status,event_type,actor_user_id,created_at FROM med_encounter_status_log
+        WHERE encounter_id=#{encounterId} ORDER BY created_at,id
+    </select>
+</mapper>

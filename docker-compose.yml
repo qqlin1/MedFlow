@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------------------
+# MedFlow 一键启动：MySQL 8.4 + 应用（含前端）
+#
+#   docker compose up -d --build     启动
+#   docker compose down              停止（保留数据）
+#   docker compose down -v           停止并删除数据卷
+#
+# 所有敏感值从同目录的 .env 读取；docker-start.ps1 会在缺失时自动生成。
+# ---------------------------------------------------------------------------
+
+name: medflow
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: medflow-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    # Cache is disposable. No volume or host port; inspect with compose exec redis redis-cli.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+  mysql:
+    image: mysql:8.4
+    container_name: medflow-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MEDFLOW_DB_PASSWORD:?缺少 MEDFLOW_DB_PASSWORD，请先运行 docker-start.ps1 或手动创建 .env}
+      MYSQL_DATABASE: medflow
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    ports:
+      # 只映射到本机 3307，避免和本机已有的 3306 冲突
+      - "127.0.0.1:${MEDFLOW_MYSQL_PORT:-3307}:3306"
+    volumes:
+      - medflow-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: medflow-app:local
+    container_name: medflow-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 容器内走服务名 mysql，不走宿主机端口
+      MEDFLOW_DB_URL: jdbc:mysql://mysql:3306/medflow?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      MEDFLOW_DB_USERNAME: root
+      MEDFLOW_REDIS_HOST: redis
+      MEDFLOW_REDIS_PORT: 6379
+      MEDFLOW_DOCTOR_CACHE_ENABLED: ${MEDFLOW_DOCTOR_CACHE_ENABLED:-true}
+      MEDFLOW_DB_PASSWORD: ${MEDFLOW_DB_PASSWORD}
+      MEDFLOW_JWT_SECRET: ${MEDFLOW_JWT_SECRET:?缺少 MEDFLOW_JWT_SECRET，请先运行 docker-start.ps1 或手动创建 .env}
+      # 本机演示账号：admin / doctor / patient，密码均为 123456。
+      # 普通非 Docker 启动默认关闭；容器每次启动幂等检查账号与医生档案。
+      MEDFLOW_DEMO_ACCOUNTS_ENABLED: ${MEDFLOW_DEMO_ACCOUNTS_ENABLED:-true}
+      MEDFLOW_DEMO_WORKFLOW_ENABLED: ${MEDFLOW_DEMO_WORKFLOW_ENABLED:-true}
+      # 后台扫描到期预约；设为 false 可关闭
+      MEDFLOW_EXPIRATION_ENABLED: ${MEDFLOW_EXPIRATION_ENABLED:-true}
+      # 仅本地演示开启接口文档；对外部署请删掉这两行
+      SPRINGDOC_API_DOCS_ENABLED: ${MEDFLOW_OPENAPI_ENABLED:-true}
+      SPRINGDOC_SWAGGER_UI_ENABLED: ${MEDFLOW_OPENAPI_ENABLED:-true}
+      TZ: Asia/Shanghai
+      JAVA_OPTS: ${MEDFLOW_JAVA_OPTS:--XX:MaxRAMPercentage=75}
+    ports:
+      - "127.0.0.1:${MEDFLOW_APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 45s
+
+volumes:
+  medflow-mysql-data:
+    name: medflow-mysql-data

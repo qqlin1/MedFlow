@@ -21,10 +21,14 @@ public class SlotBookingService {
         this.slotRepository = slotRepository;
     }
 
-    public Optional<SlotBookingSnapshot> findBookingSnapshot(
+    public Optional<SlotBookingSnapshot> lockBookingSnapshot(
             long slotId
     ) {
-        return slotRepository.findBookingSnapshot(slotId);
+        return slotRepository.lockBookingSnapshot(slotId);
+    }
+
+    public LocalDateTime currentDatabaseTime() {
+        return slotRepository.currentDatabaseTime();
     }
 
     public boolean decreaseRemainingCapacityIfBookable(
@@ -35,5 +39,13 @@ public class SlotBookingService {
                 slotId,
                 now
         );
+    }
+
+    public void lockForCapacityReturn(long slotId) {
+        slotRepository.lockByIdForUpdate(slotId);
+    }
+
+    public void returnOneCapacity(long slotId) {
+        slotRepository.increaseRemainingCapacityWithinLimit(slotId);
     }
 }

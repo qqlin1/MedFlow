@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qqlin.medflow.scheduling.management.ScheduleManagementMapper">
+    <sql id="scheduleColumns">
+        s.id, s.doctor_id, d.name AS doctor_name, d.department_id,
+        dep.name AS department_name, s.clinic_room_id, r.name AS clinic_room_name,
+        s.shift_template_id, t.name AS shift_name, s.work_date, s.start_time,
+        s.end_time, s.status,
+        COALESCE((SELECT SUM(sl.total_capacity) FROM med_slot sl WHERE sl.schedule_id = s.id),
+            FLOOR(TIME_TO_SEC(TIMEDIFF(s.end_time, s.start_time)) / 60
+                / NULLIF(s.slot_duration_minutes, 0)) * s.capacity_per_slot, 0) AS total_capacity,
+        COALESCE((SELECT SUM(sl.remaining_capacity) FROM med_slot sl WHERE sl.schedule_id = s.id),
+            FLOOR(TIME_TO_SEC(TIMEDIFF(s.end_time, s.start_time)) / 60
+                / NULLIF(s.slot_duration_minutes, 0)) * s.capacity_per_slot, 0) AS remaining_capacity,
+        (SELECT COUNT(*) FROM med_appointment a JOIN med_slot sl ON sl.id = a.slot_id
+            WHERE sl.schedule_id = s.id AND a.status IN ('PENDING_CONFIRMATION', 'BOOKED')) AS active_appointment_count,
+        s.cancel_reason
+    </sql>
+    <sql id="scheduleJoins">
+        FROM med_schedule s JOIN med_doctor d ON d.id = s.doctor_id
+        JOIN med_department dep ON dep.id = d.department_id
+        JOIN med_clinic_room r ON r.id = s.clinic_room_id
+        LEFT JOIN med_shift_template t ON t.id = s.shift_template_id
+    </sql>
+    <sql id="scheduleFilter">
+        WHERE s.work_date BETWEEN #{query.from} AND #{query.to}
+        <if test="query.doctorId != null">AND s.doctor_id = #{query.doctorId}</if>
+        <if test="query.departmentId != null">AND d.department_id = #{query.departmentId}</if>
+        <if test="query.status != null">AND s.status = #{query.status}</if>
+    </sql>
+    <select id="findPage" resultType="com.qqlin.medflow.scheduling.management.ScheduleManagementModels$ScheduleItem">
+        SELECT <include refid="scheduleColumns"/> <include refid="scheduleJoins"/>
+        <include refid="scheduleFilter"/>
+        ORDER BY s.work_date, s.start_time, s.id LIMIT #{query.limit} OFFSET #{query.offset}
+    </select>
+    <select id="count" resultType="long">
+        SELECT COUNT(*) <include refid="scheduleJoins"/> <include refid="scheduleFilter"/>
+    </select>
+    <select id="findItem" resultType="com.qqlin.medflow.scheduling.management.ScheduleManagementModels$ScheduleItem">
+        SELECT <include refid="scheduleColumns"/> <include refid="scheduleJoins"/> WHERE s.id = #{scheduleId}
+    </select>
+    <select id="findSlots" resultType="com.qqlin.medflow.scheduling.management.ScheduleManagementModels$SlotItem">
+        SELECT id, start_time, end_time, total_capacity, remaining_capacity, status, booking_deadline
+        FROM med_slot WHERE schedule_id = #{scheduleId} ORDER BY id
+    </select>
+    <select id="findState" resultType="com.qqlin.medflow.scheduling.management.ScheduleManagementModels$LockedSchedule">
+        SELECT id, work_date, start_time, status FROM med_schedule WHERE id = #{scheduleId}
+    </select>
+    <select id="lockSchedule" resultType="com.qqlin.medflow.scheduling.management.ScheduleManagementModels$LockedSchedule"
+            useCache="false" flushCache="true">
+        SELECT id, work_date, start_time, status FROM med_schedule WHERE id = #{scheduleId} FOR UPDATE
+    </select>
+    <select id="findSlotIds" resultType="long">
+        SELECT id FROM med_slot WHERE schedule_id = #{scheduleId} ORDER BY id
+    </select>
+    <select id="lockSlot" resultType="long" useCache="false" flushCache="true">
+        SELECT id FROM med_slot WHERE id = #{slotId} FOR UPDATE
+    </select>
+    <select id="lockActiveAppointments" resultType="long" useCache="false" flushCache="true">
+        SELECT id FROM med_appointment WHERE slot_id IN
+        <foreach collection="slotIds" item="slotId" open="(" close=")" separator=",">#{slotId}</foreach>
+        AND status IN ('PENDING_CONFIRMATION', 'BOOKED') ORDER BY slot_id, id FOR UPDATE
+    </select>
+    <select id="databaseTime" resultType="java.time.LocalDateTime" useCache="false" flushCache="true">
+        SELECT CURRENT_TIMESTAMP(3)
+    </select>
+    <update id="markCancelled">
+        UPDATE med_schedule SET status = 'CANCELLED', cancel_reason = #{reason},
+            cancelled_by = #{operatorId}, cancelled_at = #{now}
+        WHERE id = #{scheduleId} AND status IN ('DRAFT', 'PUBLISHED')
+    </update>
+    <update id="cancelSlots">
+        UPDATE med_slot SET status = 'CANCELLED' WHERE schedule_id = #{scheduleId}
+    </update>
+    <select id="findDoctorId" resultType="long">
+        SELECT id FROM med_doctor WHERE user_id = #{userId} AND status = 'ENABLED'
+    </select>
+    <sql id="appointmentJoins">
+        FROM med_appointment a JOIN med_slot sl ON sl.id = a.slot_id
+        JOIN med_schedule s ON s.id = sl.schedule_id
+        JOIN med_patient p ON p.id = a.patient_id
+        JOIN med_doctor d ON d.id = s.doctor_id
+        JOIN med_department dep ON dep.id = d.department_id
+        JOIN med_clinic_room r ON r.id = s.clinic_room_id
+        LEFT JOIN med_encounter e ON e.appointment_id = a.id
+        WHERE s.doctor_id = #{doctorId} AND s.work_date = #{workDate}
+    </sql>
+    <select id="findDoctorAppointments" resultType="com.qqlin.medflow.scheduling.management.ScheduleManagementModels$DoctorAppointment">
+        SELECT a.id AS appointment_id, a.patient_id, p.name AS patient_name, a.slot_id,
+            d.name AS doctor_name, dep.name AS department_name, r.name AS clinic_room_name,
+            s.work_date, sl.start_time, sl.end_time, a.status,
+            a.confirm_deadline, a.cancel_deadline, e.id AS encounter_id, e.status AS encounter_status
+        <include refid="appointmentJoins"/>
+        ORDER BY sl.start_time, a.id LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countDoctorAppointments" resultType="long">
+        SELECT COUNT(*) <include refid="appointmentJoins"/>
+    </select>
+</mapper>

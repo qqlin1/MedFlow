@@ -1,6 +1,5 @@
 package com.qqlin.medflow.scheduling.repository;
 
-import com.qqlin.medflow.scheduling.domain.ScheduleStatus;
 import com.qqlin.medflow.scheduling.domain.SlotBookingSnapshot;
 import com.qqlin.medflow.scheduling.domain.SlotDraft;
 import com.qqlin.medflow.scheduling.domain.SlotStatus;
@@ -32,17 +31,22 @@ public class SlotRepository {
         slotMapper.insertSlots(parameters);
     }
 
-    public Optional<SlotBookingSnapshot> findBookingSnapshot(
+    public Optional<SlotBookingSnapshot> lockBookingSnapshot(
             long slotId
     ) {
         return Optional.ofNullable(
-                slotMapper.findBookingSnapshot(slotId)
+                slotMapper.lockBookingSnapshot(slotId)
         );
     }
 
+    public LocalDateTime currentDatabaseTime() {
+        return slotMapper.currentDatabaseTime();
+    }
+
     /**
-     * The condition remains in SQL so competing database clients re-check
-     * capacity while taking the row lock for this UPDATE.
+     * Caller has locked the slot exclusively and its published schedule in
+     * share mode. Keep capacity/deadline guards here without upgrading the
+     * parent schedule's shared lock through a joined UPDATE.
      */
     public boolean decreaseRemainingCapacityIfBookable(
             long slotId,
@@ -51,8 +55,26 @@ public class SlotRepository {
         return slotMapper.decreaseRemainingCapacityIfBookable(
                 slotId,
                 now,
-                SlotStatus.OPEN.name(),
-                ScheduleStatus.PUBLISHED.name()
+                SlotStatus.OPEN.name()
         ) == 1;
+    }
+
+    public void lockByIdForUpdate(long slotId) {
+        Long lockedSlotId = slotMapper.lockByIdForUpdate(slotId);
+
+        if (lockedSlotId == null) {
+            throw new IllegalStateException("预约关联的号源不存在");
+        }
+    }
+
+    public void increaseRemainingCapacityWithinLimit(long slotId) {
+        int affectedRows = slotMapper
+                .increaseRemainingCapacityWithinLimit(slotId);
+
+        if (affectedRows != 1) {
+            throw new IllegalStateException(
+                    "归还号源失败：号源不存在或剩余容量已达到上限"
+            );
+        }
     }
 }
